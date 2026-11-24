@@ -1,26 +1,58 @@
 @import "tailwindcss";
 
+/* Tokens de diseño: tinta casi negra y gris frío; un único acento amarillo
+   (solo "requiere tu atención"); óxido para urgencia y errores. */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --ink: #12151a;
+  --ink-soft: #2b313b;
+  --paper: #ffffff;
+  --surface: #eef0f3;
+  --line: #d3d8df;
+  --muted: #4b5563;
+  --accent: #f5c518;
+  --rust: #b3361b;
+  --money-ok: #1b6b3a;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  --color-ink: var(--ink);
+  --color-ink-soft: var(--ink-soft);
+  --color-paper: var(--paper);
+  --color-surface: var(--surface);
+  --color-line: var(--line);
+  --color-muted: var(--muted);
+  --color-accent: var(--accent);
+  --color-rust: var(--rust);
+  --color-money-ok: var(--money-ok);
+  --font-display: var(--font-barlow), "Arial Narrow", sans-serif;
+  --font-sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--surface);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  font-size: 1rem;
+  line-height: 1.5;
+}
+
+/* Cifras tabulares en importes y matrículas */
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+:focus-visible {
+  outline: 3px solid var(--ink);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
