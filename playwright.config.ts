@@ -24,16 +24,23 @@ const soloRls = /--project[= ]rls(\s|$)/.test(args) && !/--project[= ]chromium/.
 
 export default defineConfig({
   fullyParallel: true,
+  // Margen para el primer render con el servidor dev en frío (compilación + streaming).
+  timeout: 60_000,
+  expect: { timeout: 20_000 },
   reporter: "list",
   use: {
     baseURL: `http://localhost:${PORT}`,
     trace: "on-first-retry",
   },
   projects: [
+    // Un único inicio de sesión real; el resto de tests reutiliza la sesión.
+    { name: "setup", testDir: "./e2e", testMatch: /auth\.setup\.ts/ },
     {
       name: "chromium",
       testDir: "./e2e",
-      use: { ...devices["Desktop Chrome"] },
+      testIgnore: /auth\.setup\.ts/,
+      dependencies: ["setup"],
+      use: { ...devices["Desktop Chrome"], storageState: "e2e/.auth/user.json" },
     },
     // Pruebas de RLS contra la BD real con la clave anónima (sin navegador).
     // Sin paralelismo dentro de cada archivo: se reutiliza la sesión del worker.

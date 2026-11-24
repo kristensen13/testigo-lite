@@ -54,7 +54,15 @@ export async function proxy(request: NextRequest) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
     url.search = "";
-    return NextResponse.redirect(url);
+    const redirect = NextResponse.redirect(url);
+    redirect.headers.set("Cache-Control", "no-store, max-age=0");
+    return redirect;
+  }
+
+  // Las pantallas del taller y el login nunca se cachean (ni en el
+  // navegador al volver atrás tras cerrar sesión).
+  if (!pathname.startsWith("/p/") && pathname !== "/p") {
+    response.headers.set("Cache-Control", "no-store, max-age=0");
   }
 
   return response;

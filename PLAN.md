@@ -18,7 +18,7 @@ Producto en `PRODUCT.md`. Normas de calidad en `DIRECTRICES.md`; los números en
 - [x] T2 — Andamiaje: clientes Supabase, proxy, config de tests, diseño base
 - [x] T3 — Test de RLS con clave anon *(pausa del usuario: aplicar T1)*
 - [x] T4 — Dominio: importes, totales, estados, matrícula, WhatsApp
-- [ ] T5 — Login, logout y rutas protegidas
+- [x] T5 — Login, logout y rutas protegidas
 - [ ] T6 — Tablero con buscador
 - [ ] T7 — Nueva orden
 - [ ] T8 — Ficha de la orden: datos, cambio de estado e historial

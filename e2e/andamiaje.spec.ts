@@ -1,5 +1,7 @@
 import { expect, test } from "@playwright/test";
 
+test.use({ storageState: { cookies: [], origins: [] } });
+
 test("sin sesión, / redirige a /login", async ({ page }) => {
   await page.goto("/");
   await expect(page).toHaveURL(/\/login$/);

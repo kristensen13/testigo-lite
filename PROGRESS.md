@@ -6,7 +6,7 @@
 | T2 — Andamiaje | Hecha | 1 | Aprobada a la primera. Informe: `docs/revisiones/T2-vuelta1.md`. `.env.example` creado pero **sin versionar** (conflicto con la directriz 20, pendiente de decisión del usuario). Playwright usa el puerto 3100. |
 | T3 — Test de RLS con clave anon | Hecha | 1 | Aprobada a la primera. Informe: `docs/revisiones/T3-vuelta1.md`. 34 tests de RLS en verde contra la BD real: `0001_init.sql` no ha necesitado cambios. Script `npm run test:rls`. |
 | T4 — Dominio | Hecha | 1 | Aprobada a la primera. Informe: `docs/revisiones/T4-vuelta1.md`. 106 tests de Vitest. Tipo `Result` para errores de entrada. |
-| T5 — Login y rutas protegidas | Pendiente | | |
+| T5 — Login y rutas protegidas | Hecha | 2 | Vuelta 1: FALLO (directriz 10, el setup E2E agotaba el timeout de 5 s con el servidor en frío). Vuelta 2: APROBADA. Informes: `docs/revisiones/T5-vuelta1.md` y `T5-vuelta2.md`. Logout como `POST /logout` (route handler). El tablero de `/` es provisional hasta T6. |
 | T6 — Tablero con buscador | Pendiente | | |
 | T7 — Nueva orden | Pendiente | | |
 | T8 — Ficha de la orden | Pendiente | | |
@@ -23,6 +23,9 @@
 - Directriz 20 y `.env.example`: resuelto. La directriz permite `.env.example` (solo nombres de variables, sin valores) y `.claude/settings.json` ya no bloquea su lectura. Revisado en `docs/revisiones/ajuste-env-example-vuelta1.md`.
 - Los tests de RLS (y los E2E que usen la BD) dejan filas `E2E…` en Supabase porque el taller no puede borrar órdenes; volver a ejecutar `supabase/seed.sql` las limpia.
 - Supabase limita los inicios de sesión: no conviene lanzar `npm run test:e2e` muchas veces seguidas.
+- `next dev` muestra el aviso "unstable value Date.now() while prerendering" en `<WorkshopName />` (supabase-js usa `Date.now`). `testing` lo revisó en T5: ruido de la validación de prerender en desarrollo, no aparece en `build` y no afecta a la corrección ni a la seguridad.
+- Los E2E hacen unos 3 inicios de sesión reales por ejecución (setup, credenciales incorrectas y flujo login/logout). Cuidado con el límite de Supabase.
+- Next no deja arrancar dos `next dev` en la misma carpeta: si hay uno abierto, el `webServer` de Playwright (puerto 3100) falla. Cierra tu servidor dev antes de lanzar `npm run test:e2e`.
 - Observaciones menores de `testing` en T3 (sin bloquear): el `insert({})` de anon solo comprueba que hay error, no su código; el test de borrado de orden admite error o 0 filas.
 - Aviso de Next: ignora un `package-lock.json` en `C:\Users\Wilson`; se arreglaría con `turbopack.root` (no tocado).
 
