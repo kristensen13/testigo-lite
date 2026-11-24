@@ -5,7 +5,7 @@
 | T1 — Base de datos | Hecha | 1 | Aprobada a la primera. Informe: `docs/revisiones/T1-vuelta1.md`. El SQL solo se ha revisado por lectura; la prueba real contra la BD es T3. |
 | T2 — Andamiaje | Hecha | 1 | Aprobada a la primera. Informe: `docs/revisiones/T2-vuelta1.md`. `.env.example` creado pero **sin versionar** (conflicto con la directriz 20, pendiente de decisión del usuario). Playwright usa el puerto 3100. |
 | T3 — Test de RLS con clave anon | Hecha | 1 | Aprobada a la primera. Informe: `docs/revisiones/T3-vuelta1.md`. 34 tests de RLS en verde contra la BD real: `0001_init.sql` no ha necesitado cambios. Script `npm run test:rls`. |
-| T4 — Dominio | Pendiente | | |
+| T4 — Dominio | Hecha | 1 | Aprobada a la primera. Informe: `docs/revisiones/T4-vuelta1.md`. 106 tests de Vitest. Tipo `Result` para errores de entrada. |
 | T5 — Login y rutas protegidas | Pendiente | | |
 | T6 — Tablero con buscador | Pendiente | | |
 | T7 — Nueva orden | Pendiente | | |
