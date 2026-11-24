@@ -21,7 +21,7 @@ Producto en `PRODUCT.md`. Normas de calidad en `DIRECTRICES.md`; los números en
 - [x] T5 — Login, logout y rutas protegidas
 - [x] T6 — Tablero con buscador
 - [x] T7 — Nueva orden
-- [ ] T8 — Ficha de la orden: datos, cambio de estado e historial
+- [x] T8 — Ficha de la orden: datos, cambio de estado e historial
 - [ ] T9 — Presupuesto: líneas y totales
 - [ ] T10 — `0002_portal.sql`: enlaces y RPC del portal *(pausa del usuario: aplicar 0002)*
 - [ ] T11 — Enlace para el cliente (UI del taller + WhatsApp)

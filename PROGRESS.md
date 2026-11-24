@@ -9,7 +9,7 @@
 | T5 — Login y rutas protegidas | Hecha | 2 | Vuelta 1: FALLO (directriz 10, el setup E2E agotaba el timeout de 5 s con el servidor en frío). Vuelta 2: APROBADA. Informes: `docs/revisiones/T5-vuelta1.md` y `T5-vuelta2.md`. Logout como `POST /logout` (route handler). El tablero de `/` es provisional hasta T6. |
 | T6 — Tablero con buscador | Hecha | 1 | Aprobada a la primera. Informe: `docs/revisiones/T6-vuelta1.md`. 136 tests de Vitest y 17 E2E. Sin N+1: 1 consulta sin búsqueda, 3 con búsqueda. |
 | T7 — Nueva orden | Hecha | 2 | Vuelta 1: FALLO (directriz 10: el test de T6 "criterio 5" recorría Tab con tope fijo y dejó de alcanzar la tarjeta al acumularse órdenes E2E). Vuelta 2: APROBADA. Informes: `docs/revisiones/T7-vuelta1.md` y `T7-vuelta2.md`. 142 tests de Vitest y 20 E2E. |
-| T8 — Ficha de la orden | Pendiente | | |
+| T8 — Ficha de la orden | Hecha | 1 | Aprobada a la primera. Informe: `docs/revisiones/T8-vuelta1.md`. 157 tests de Vitest, 27 E2E y el spec de BD `tests/rls/cambio-estado.spec.ts`. La ficha deja un hueco (`data-slot="presupuesto-y-enlace"`) para T9 y T11. |
 | T9 — Presupuesto | Pendiente | | |
 | T10 — `0002_portal.sql` | Pendiente | | Pausa del usuario: aplicar `0002_portal.sql`. |
 | T11 — Enlace para el cliente | Pendiente | | |
@@ -28,6 +28,7 @@
 - Next no deja arrancar dos `next dev` en la misma carpeta: si hay uno abierto, el `webServer` de Playwright (puerto 3100) falla. Cierra tu servidor dev antes de lanzar `npm run test:e2e`.
 - Tablero (T6): con 300 órdenes o 200 ids de coincidencia previa corta sin avisar al usuario (convendría un aviso al llegar al límite), y `ilike '%x%'` no usa los índices btree (aceptable a escala de taller; un índice `pg_trgm` sería una mejora futura). El E2E solo cubre `%` y `_` en la búsqueda; las comas, paréntesis y puntos no inyectan filtros porque `.or()` solo recibe UUID de la BD.
 - Acumulación de órdenes E2E (T7): cada ejecución completa del E2E crea ~4 órdenes `E2E…` que el taller no puede borrar (sin política delete, sin `service_role`). El tablero limita a 300 órdenes por `created_at` descendente; con ~290 órdenes E2E acumuladas (unas 60–70 ejecuciones) dejarían de verse las del seed y fallarían los tests del tablero que buscan órdenes del seed sin `?q=` ("criterio 1", "criterio 6" y el de 360 px). Se recupera ejecutando `supabase/seed.sql`, que limpia las filas E2E.
+- 404 de la ficha (T8): una orden de otro taller o un id que no es uuid se muestra como página "404 · Orden no encontrada" pero con HTTP 200 y `noindex`, porque con `cacheComponents` el `notFound()` se ejecuta dentro de `<Suspense>` con la respuesta ya iniciada (lo documenta Next en `not-found.md` y `streaming.md`). `testing` lo dio por válido tras comprobarlo con `curl`: no se filtra ningún dato de la orden ajena y sin sesión redirige a `/login` (307). Un 404 real exigiría consultar la BD en `proxy.ts`.
 - Observaciones menores de `testing` en T3 (sin bloquear): el `insert({})` de anon solo comprueba que hay error, no su código; el test de borrado de orden admite error o 0 filas.
 - Aviso de Next: ignora un `package-lock.json` en `C:\Users\Wilson`; se arreglaría con `turbopack.root` (no tocado).
 
