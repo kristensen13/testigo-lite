@@ -4,8 +4,10 @@ import { notFound } from "next/navigation";
 import { buildHistory, isUuid, statusButtons } from "@/domain/order-detail";
 import { formatDateTime } from "@/domain/format";
 import { workshopLabel } from "@/domain/order-status";
+import { fetchOrderLines } from "@/lib/order-lines";
 import { fetchOrderDetail, fetchOrderEvents } from "@/lib/order-detail";
 import { createClient } from "@/lib/supabase/server";
+import { Presupuesto } from "./presupuesto";
 import { StatusButtons } from "./status-buttons";
 
 export const metadata = { title: "Ficha de la orden" };
@@ -17,9 +19,10 @@ async function Ficha({ params }: { params: Promise<{ id: string }> }) {
   if (!isUuid(id)) notFound();
 
   const supabase = await createClient();
-  const [order, events] = await Promise.all([
+  const [order, events, lines] = await Promise.all([
     fetchOrderDetail(supabase, id),
     fetchOrderEvents(supabase, id),
+    fetchOrderLines(supabase, id),
   ]);
   if (!order) notFound();
 
@@ -107,7 +110,9 @@ async function Ficha({ params }: { params: Promise<{ id: string }> }) {
       </section>
 
       {/* Hueco reservado: T9 (presupuesto) y T11 (enlace para el cliente). */}
-      <div data-slot="presupuesto-y-enlace" className="mt-4" />
+      <div data-slot="presupuesto-y-enlace" className="mt-4 space-y-4">
+        <Presupuesto orderId={order.id} rows={lines} />
+      </div>
 
       <section aria-labelledby="historial" className="mt-4 rounded-md border border-line bg-paper p-4">
         <h2 id="historial" className="font-display text-xl font-semibold uppercase">

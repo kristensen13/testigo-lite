@@ -10,7 +10,7 @@
 | T6 — Tablero con buscador | Hecha | 1 | Aprobada a la primera. Informe: `docs/revisiones/T6-vuelta1.md`. 136 tests de Vitest y 17 E2E. Sin N+1: 1 consulta sin búsqueda, 3 con búsqueda. |
 | T7 — Nueva orden | Hecha | 2 | Vuelta 1: FALLO (directriz 10: el test de T6 "criterio 5" recorría Tab con tope fijo y dejó de alcanzar la tarjeta al acumularse órdenes E2E). Vuelta 2: APROBADA. Informes: `docs/revisiones/T7-vuelta1.md` y `T7-vuelta2.md`. 142 tests de Vitest y 20 E2E. |
 | T8 — Ficha de la orden | Hecha | 1 | Aprobada a la primera. Informe: `docs/revisiones/T8-vuelta1.md`. 157 tests de Vitest, 27 E2E y el spec de BD `tests/rls/cambio-estado.spec.ts`. La ficha deja un hueco (`data-slot="presupuesto-y-enlace"`) para T9 y T11. |
-| T9 — Presupuesto | Pendiente | | |
+| T9 — Presupuesto | Hecha | 1 | Aprobada a la primera. Informe: `docs/revisiones/T9-vuelta1.md`. 187 tests de Vitest, 33 E2E y el spec de BD `tests/rls/lineas-decididas.spec.ts`. El precio 0 se rechaza (el criterio 2 lista "cero"); la BD lo permitiría. |
 | T10 — `0002_portal.sql` | Pendiente | | Pausa del usuario: aplicar `0002_portal.sql`. |
 | T11 — Enlace para el cliente | Pendiente | | |
 | T12 — Portal del cliente (lectura) | Pendiente | | |
