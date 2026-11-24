@@ -19,20 +19,34 @@ const env = {
 
 const PORT = 3100;
 
+const args = process.argv.join(" ");
+const soloRls = /--project[= ]rls(\s|$)/.test(args) && !/--project[= ]chromium/.test(args);
+
 export default defineConfig({
-  testDir: "./e2e",
   fullyParallel: true,
   reporter: "list",
   use: {
     baseURL: `http://localhost:${PORT}`,
     trace: "on-first-retry",
   },
-  projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
-  webServer: {
-    command: `npm run dev -- --port ${PORT}`,
-    url: `http://localhost:${PORT}/login`,
-    reuseExistingServer: !process.env.CI,
-    timeout: 120_000,
-    env,
-  },
+  projects: [
+    {
+      name: "chromium",
+      testDir: "./e2e",
+      use: { ...devices["Desktop Chrome"] },
+    },
+    // Pruebas de RLS contra la BD real con la clave anónima (sin navegador).
+    // Sin paralelismo dentro de cada archivo: se reutiliza la sesión del worker.
+    { name: "rls", testDir: "./tests/rls", fullyParallel: false },
+  ],
+  // Si solo se ejecuta el proyecto rls no hace falta levantar la app.
+  webServer: soloRls
+    ? undefined
+    : {
+        command: `npm run dev -- --port ${PORT}`,
+        url: `http://localhost:${PORT}/login`,
+        reuseExistingServer: !process.env.CI,
+        timeout: 120_000,
+        env,
+      },
 });

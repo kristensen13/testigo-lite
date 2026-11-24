@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "eslint",
     "test": "vitest run",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "test:rls": "playwright test --project=rls"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.7",
