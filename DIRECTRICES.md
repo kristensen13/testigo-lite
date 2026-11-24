@@ -29,7 +29,7 @@ Normas que **develop** debe cumplir y que **testing** hace cumplir. Cada punto e
 17. El enlace del cliente puede caducar y revocarse, y un enlace caducado o revocado no da acceso (probado con un test).
 18. Ninguna clave ni secreto en el código: `git grep -nEi "(secret|api[_-]?key|password|token)\s*[:=]\s*['\"][^'\"]{8,}"` y `git grep -n "eyJ"` sin coincidencias reales.
 19. No se usa `service_role` en ningún sitio (`git grep -ni service_role` vacío).
-20. `.env*` no está versionado (`git ls-files | grep -i "^\.env"` vacío) y no se ha leído ni mostrado `.env.local`.
+20. Ningún `.env*` está versionado salvo `.env.example` (`git ls-files | grep -i "^\.env" | grep -v "^\.env\.example$"` vacío), `.env.example` no contiene valores (solo nombres de variables con el valor vacío) y no se ha leído ni mostrado `.env.local`.
 21. Las variables expuestas al navegador (`NEXT_PUBLIC_*`) son solo la URL y la clave anónima de Supabase.
 
 ## Accesibilidad

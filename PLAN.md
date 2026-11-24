@@ -356,6 +356,6 @@ Producto en `PRODUCT.md`. Normas de calidad en `DIRECTRICES.md`; los números en
 
 1. El flujo completo pasa en un solo test.
 2. Axe no da violaciones `serious` ni `critical` en las 4 pantallas.
-3. `git grep` de secretos y de `service_role`, y `git ls-files | grep -i "^\.env"`, no devuelven nada.
+3. `git grep` de secretos y de `service_role`, y `git ls-files | grep -i "^\.env" | grep -v "^\.env\.example$"`, no devuelven nada; y `.env.example` solo tiene nombres de variables, sin valores.
 4. El README permite poner la app en marcha sin otro documento.
 5. `npm run lint`, `npx tsc --noEmit`, `npm run build`, `npm test` y `npm run test:e2e` terminan en verde.
