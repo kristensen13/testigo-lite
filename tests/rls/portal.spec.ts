@@ -218,6 +218,74 @@ test.describe("Portal: caducidad y revocación", () => {
     expect((data ?? []).filter((l) => l.revoked_at === null)).toHaveLength(1);
   });
 
+  test("dos creaciones seguidas dejan un único enlace activo y solo el segundo token funciona", async () => {
+    const { orderId } = await prepararOrden();
+    const usuario = await clienteUsuario(1);
+    const primero = await crearEnlace(usuario, orderId);
+    const segundo = await crearEnlace(usuario, orderId);
+    expect(segundo).not.toBe(primero);
+
+    const { data, error } = await usuario
+      .from("public_links")
+      .select("revoked_at")
+      .eq("order_id", orderId);
+    expect(error).toBeNull();
+    expect(data).toHaveLength(2);
+    expect((data ?? []).filter((l) => l.revoked_at === null)).toHaveLength(1);
+
+    const anon = clienteAnon();
+    expect((await anon.rpc("portal_get", { p_token: primero })).data).toBeNull();
+    expect((await anon.rpc("portal_get", { p_token: segundo })).data).not.toBeNull();
+  });
+
+  test("con p_ttl_days = 0 se pueden crear enlaces seguidos sin chocar con el índice único", async () => {
+    const { orderId } = await prepararOrden();
+    const usuario = await clienteUsuario(1);
+    await crearEnlace(usuario, orderId, 0);
+    await crearEnlace(usuario, orderId, 0);
+    const ultimo = await crearEnlace(usuario, orderId);
+
+    const { data } = await usuario.from("public_links").select("revoked_at").eq("order_id", orderId);
+    expect(data).toHaveLength(3);
+    expect((data ?? []).filter((l) => l.revoked_at === null)).toHaveLength(1);
+    expect((await clienteAnon().rpc("portal_get", { p_token: ultimo })).data).not.toBeNull();
+  });
+
+  test("dos creaciones simultáneas nunca dejan dos enlaces activos", async () => {
+    const { orderId } = await prepararOrden();
+    const usuario = await clienteUsuario(1);
+    const resultados = await Promise.all([
+      usuario.rpc("create_public_link", { p_order_id: orderId }),
+      usuario.rpc("create_public_link", { p_order_id: orderId }),
+    ]);
+
+    // Con el bloqueo de la orden se serializan y ambas funcionan; si alguna
+    // fallara, solo se admite un error controlado (nunca dejar dos activos).
+    const tokens: string[] = [];
+    for (const r of resultados) {
+      if (r.error) {
+        expect(r.error.message).toMatch(/public_links_one_active_idx|duplicate key|deadlock/);
+      } else {
+        expect(r.data).toMatch(TOKEN_HEX);
+        tokens.push(r.data as string);
+      }
+    }
+    expect(tokens.length).toBeGreaterThanOrEqual(1);
+
+    const { data, error } = await usuario
+      .from("public_links")
+      .select("revoked_at")
+      .eq("order_id", orderId);
+    expect(error).toBeNull();
+    expect((data ?? []).filter((l) => l.revoked_at === null)).toHaveLength(1);
+    expect(data).toHaveLength(tokens.length);
+
+    // Exactamente uno de los tokens devueltos funciona.
+    const anon = clienteAnon();
+    const validos = await Promise.all(tokens.map((t) => anon.rpc("portal_get", { p_token: t })));
+    expect(validos.filter((v) => v.data !== null)).toHaveLength(1);
+  });
+
   test("p_ttl_days fuera de 0..90 se rechaza", async () => {
     const { orderId } = await prepararOrden();
     const usuario = await clienteUsuario(1);

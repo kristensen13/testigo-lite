@@ -16,6 +16,10 @@
 --   4. portal_get / portal_decide (anon y authenticated), con lista blanca.
 --   5. Aviso en vivo: order_lines y order_events en la publicación realtime.
 --
+-- Regla "un enlace activo por orden": la garantiza la BD con un índice único
+-- parcial (public_links_one_active_idx), no solo create_public_link. Para la
+-- regla, "activo" = revoked_at is null (un enlace caducado sin revocar cuenta).
+--
 -- Token: 32 bytes aleatorios (extensions.gen_random_bytes) en hexadecimal, 64
 -- caracteres en minúscula. En la BD solo se guarda su SHA-256 en hexadecimal
 -- (misma representación que public_links.token_hash, ^[0-9a-f]{64}$).
@@ -57,6 +61,33 @@ drop policy if exists public_links_insert on public.public_links;
 drop policy if exists public_links_update on public.public_links;
 
 -- -----------------------------------------------------------------------------
+-- 2b. Un solo enlace no revocado por orden (lo garantiza la BD)
+--     Limpieza previa, idempotente: si ya hubiera varias filas no revocadas de
+--     la misma orden, el create unique index fallaría y abortaría toda la
+--     migración. Se revocan todas salvo la más reciente (created_at desc, id desc).
+--     Si no hay duplicados no toca ninguna fila (también al re-ejecutar).
+--     Va antes de que ninguna función pueda insertar.
+-- -----------------------------------------------------------------------------
+
+update public.public_links l
+   set revoked_at = now()
+  from (
+    select pl.id,
+           row_number() over (
+             partition by pl.order_id
+             order by pl.created_at desc, pl.id desc
+           ) as rn
+      from public.public_links pl
+     where pl.revoked_at is null
+  ) d
+ where l.id = d.id
+   and d.rn > 1;
+
+create unique index if not exists public_links_one_active_idx
+  on public.public_links (order_id)
+  where revoked_at is null;
+
+-- -----------------------------------------------------------------------------
 -- Hash del token (interno: solo lo llaman las funciones security definer)
 -- -----------------------------------------------------------------------------
 
@@ -83,16 +114,21 @@ set search_path = ''
 as $$
 declare
   v_workshop_id uuid := public.current_workshop_id();
+  v_order_id    uuid;
   v_token       text;
   v_revoked     integer;
 begin
   -- Mismo error si no hay usuario, la orden no existe o es de otro taller.
-  if v_workshop_id is null
-     or p_order_id is null
-     or not exists (
-       select 1 from public.orders o
-       where o.id = p_order_id and o.workshop_id = v_workshop_id
-     ) then
+  -- Bloquea la orden (si es del taller del usuario): dos llamadas simultáneas
+  -- para la misma orden se serializan y la segunda ve el enlace de la primera.
+  -- for update no dispara los triggers de orders (solo saltan al escribir filas).
+  if v_workshop_id is not null and p_order_id is not null then
+    select o.id into v_order_id
+      from public.orders o
+     where o.id = p_order_id and o.workshop_id = v_workshop_id
+       for update;
+  end if;
+  if v_order_id is null then
     raise exception 'orden no encontrada' using errcode = 'P0002';
   end if;
 
@@ -100,6 +136,11 @@ begin
     raise exception 'ttl_invalido' using errcode = '22023';
   end if;
 
+  -- Primero se revocan TODOS los no revocados de la orden (también los ya
+  -- caducados, que para el índice único siguen siendo "activos") y después se
+  -- inserta: así public_links_one_active_idx nunca choca aquí, tampoco con
+  -- p_ttl_days = 0 (el enlace nace caducado pero sin revoked_at; el siguiente
+  -- create lo revoca antes de insertar).
   update public.public_links l
      set revoked_at = now()
    where l.order_id = p_order_id
@@ -130,7 +171,8 @@ begin
 end;
 $$;
 
--- Revoca el enlace activo de la orden (si lo hay).
+-- Revoca el enlace activo de la orden (si lo hay). Bloquea la orden igual que
+-- create_public_link para no competir con él.
 create or replace function public.revoke_public_link(p_order_id uuid)
 returns void
 language plpgsql
@@ -139,14 +181,19 @@ set search_path = ''
 as $$
 declare
   v_workshop_id uuid := public.current_workshop_id();
+  v_order_id    uuid;
   v_revoked     integer;
 begin
-  if v_workshop_id is null
-     or p_order_id is null
-     or not exists (
-       select 1 from public.orders o
-       where o.id = p_order_id and o.workshop_id = v_workshop_id
-     ) then
+  -- Bloquea la orden (si es del taller del usuario): dos llamadas simultáneas
+  -- para la misma orden se serializan y la segunda ve el enlace de la primera.
+  -- for update no dispara los triggers de orders (solo saltan al escribir filas).
+  if v_workshop_id is not null and p_order_id is not null then
+    select o.id into v_order_id
+      from public.orders o
+     where o.id = p_order_id and o.workshop_id = v_workshop_id
+       for update;
+  end if;
+  if v_order_id is null then
     raise exception 'orden no encontrada' using errcode = 'P0002';
   end if;
 
