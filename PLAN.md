@@ -24,7 +24,7 @@ Producto en `PRODUCT.md`. Normas de calidad en `DIRECTRICES.md`; los números en
 - [x] T8 — Ficha de la orden: datos, cambio de estado e historial
 - [x] T9 — Presupuesto: líneas y totales
 - [x] T10 — `0002_portal.sql`: enlaces y RPC del portal *(pausa del usuario: aplicar 0002)*
-- [ ] T11 — Enlace para el cliente (UI del taller + WhatsApp)
+- [x] T11 — Enlace para el cliente (UI del taller + WhatsApp)
 - [ ] T12 — Portal del cliente (lectura)
 - [ ] T13 — Portal: aprobar y rechazar con confirmación
 - [ ] T14 — Aviso en vivo en tablero y ficha (Supabase Realtime)

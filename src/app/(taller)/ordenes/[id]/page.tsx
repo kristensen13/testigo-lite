@@ -7,6 +7,8 @@ import { workshopLabel } from "@/domain/order-status";
 import { fetchOrderLines } from "@/lib/order-lines";
 import { fetchOrderDetail, fetchOrderEvents } from "@/lib/order-detail";
 import { createClient } from "@/lib/supabase/server";
+import { fetchLinkInfo } from "@/lib/public-link";
+import { EnlaceCliente } from "./enlace-cliente";
 import { Presupuesto } from "./presupuesto";
 import { StatusButtons } from "./status-buttons";
 
@@ -19,10 +21,11 @@ async function Ficha({ params }: { params: Promise<{ id: string }> }) {
   if (!isUuid(id)) notFound();
 
   const supabase = await createClient();
-  const [order, events, lines] = await Promise.all([
+  const [order, events, lines, link] = await Promise.all([
     fetchOrderDetail(supabase, id),
     fetchOrderEvents(supabase, id),
     fetchOrderLines(supabase, id),
+    fetchLinkInfo(supabase, id),
   ]);
   if (!order) notFound();
 
@@ -112,6 +115,13 @@ async function Ficha({ params }: { params: Promise<{ id: string }> }) {
       {/* Hueco reservado: T9 (presupuesto) y T11 (enlace para el cliente). */}
       <div data-slot="presupuesto-y-enlace" className="mt-4 space-y-4">
         <Presupuesto orderId={order.id} rows={lines} />
+        <EnlaceCliente
+          orderId={order.id}
+          link={link}
+          customerName={order.customerName}
+          customerPhone={order.customerPhone}
+          plate={order.plate}
+        />
       </div>
 
       <section aria-labelledby="historial" className="mt-4 rounded-md border border-line bg-paper p-4">
