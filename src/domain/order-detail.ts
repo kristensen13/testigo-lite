@@ -39,6 +39,8 @@ export interface OrderEventRow {
   actor: string;
   note: string | null;
   created_at: string;
+  /** Línea afectada (decisiones del cliente), embebida en la misma consulta. */
+  order_lines?: { description: string } | { description: string }[] | null;
 }
 
 export interface HistoryEntry {
@@ -60,18 +62,27 @@ const ACTORS: Record<string, string> = {
 const statusText = (s: string | null): string =>
   s !== null && isOrderStatus(s) ? workshopLabel(s) : "—";
 
+function lineDescription(e: OrderEventRow): string | null {
+  const rel = e.order_lines;
+  const line = Array.isArray(rel) ? rel[0] : rel;
+  return line?.description ? line.description : null;
+}
+
 function eventTitle(e: OrderEventRow): string {
   switch (e.type) {
     case "creada":
       return `Orden creada en ${statusText(e.to_status)}`;
     case "estado":
       return `Estado: ${statusText(e.from_status)} → ${statusText(e.to_status)}`;
-    case "decision":
+    case "decision": {
+      const desc = lineDescription(e);
+      const what = desc ? `«${desc}»` : "un trabajo";
       return e.note === "aprobada"
-        ? "El cliente aprobó un trabajo"
+        ? `El cliente aprobó ${what}`
         : e.note === "rechazada"
-          ? "El cliente rechazó un trabajo"
-          : "El cliente decidió sobre un trabajo";
+          ? `El cliente rechazó ${what}`
+          : `El cliente decidió sobre ${what}`;
+    }
     case "enlace_creado":
       return "Enlace para el cliente creado";
     case "enlace_revocado":

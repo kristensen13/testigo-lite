@@ -71,7 +71,7 @@ Transiciones: solo al estado siguiente o al anterior. **Entregado** es terminal.
 - **Acceso:** por `/p/<token>`, sin login. El token son 32 bytes aleatorios en hexadecimal (64 caracteres). En la base de datos solo se guarda su hash (SHA-256).
 - **Vida del enlace:** caduca a los 7 días por defecto y se puede revocar. Un enlace nuevo revoca el anterior. El taller solo ve el enlace completo justo después de crearlo.
 - **Lista blanca de datos:** nombre y teléfono del taller, matrícula, marca/modelo, estado, líneas (descripción, tipo, cantidad, precio, decisión y fecha), totales y fecha de caducidad.
-- **Nunca se muestra:** teléfono ni nombre completo del cliente, km, historial interno, ids internos ni datos de otros talleres.
+- **Nunca se muestra:** teléfono ni nombre completo del cliente, km, historial interno, ids internos ni datos de otros talleres. Única excepción: el identificador (uuid) de cada línea del presupuesto que se puede decidir, que `portal_get` ya devuelve en su lista blanca y que `portal_decide` necesita; solo viaja en el payload de la página (no como atributo visible), no sirve sin un token válido y no se filtra ningún id de orden, taller, cliente ni vehículo.
 - **Enlace inexistente, caducado o revocado:** la misma página genérica "Este enlace ya no está disponible", sin pistas del motivo.
 - **Decidir:** cada trabajo pendiente tiene "Aprobar" y "Rechazar", y pide confirmación explícita con el nombre del trabajo y el importe ("¿Apruebas «Pastillas de freno» por 88,94 €?"). Con "Volver" no se guarda nada.
 - **Cabeceras:** `/p/*` va con `Referrer-Policy: no-referrer`, `X-Robots-Tag: noindex` y sin caché.

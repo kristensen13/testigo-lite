@@ -4,6 +4,8 @@ import { describe, expect, it } from "vitest";
 import { portalViewFromRpc } from "@/domain/portal";
 import { PortalUnavailable, PortalView } from "./portal-view";
 
+const TOKEN = "cd".repeat(32);
+
 function html(lines: unknown[], status = "esperando_aprobacion"): string {
   const view = portalViewFromRpc({
     workshop: { name: "Taller Demo", phone: "910 000 000" },
@@ -13,7 +15,7 @@ function html(lines: unknown[], status = "esperando_aprobacion"): string {
     lines,
   });
   if (!view) throw new Error("vista no válida");
-  return renderToStaticMarkup(createElement(PortalView, { view }));
+  return renderToStaticMarkup(createElement(PortalView, { view, token: TOKEN }));
 }
 
 const linea = (decision: string, decided_at: string | null) => ({
@@ -33,13 +35,28 @@ describe("PortalView", () => {
       linea("aprobada", "2030-01-05T09:30:00+00:00"),
       { ...linea("rechazada", "2030-01-06T10:00:00+00:00"), id: "22222222-2222-4222-8222-222222222222" },
       { ...linea("pendiente", null), id: "33333333-3333-4333-8333-333333333333" },
-    ]);
+    ], "en_reparacion");
     expect(out).toContain("Aprobado");
     expect(out).toContain("Rechazado");
     expect(out).toContain("Pendiente");
-    expect(out).toMatch(/Aprobado<\/span><span[^>]*>el [^<]*2030/);
+    expect(out).toMatch(/Aprobado<\/span><span[^>]*> el [^<]*2030/);
     expect(out).not.toContain("<button");
     expect(out).not.toContain("11111111-1111");
+  });
+  it("esperando aprobación: botones solo en las líneas pendientes", () => {
+    const out = html([
+      linea("aprobada", "2030-01-05T09:30:00+00:00"),
+      { ...linea("pendiente", null), id: "33333333-3333-4333-8333-333333333333" },
+    ]);
+    expect(out.match(/<button/g)).toHaveLength(2);
+    expect(out).toContain("Aprobar");
+    expect(out).toContain("Rechazar");
+    expect(out).not.toContain("Sí, apruébalo"); // la confirmación no se pinta hasta pulsar
+  });
+  it("fuera de esperando aprobación no hay botones aunque haya pendientes", () => {
+    for (const st of ["recibido", "diagnostico", "en_reparacion", "listo", "entregado"]) {
+      expect(html([linea("pendiente", null)], st)).not.toContain("<button");
+    }
   });
   it("estado vacío útil", () => {
     expect(html([])).toContain("Todavía no hay trabajos en el presupuesto");

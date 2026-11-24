@@ -26,7 +26,7 @@ Producto en `PRODUCT.md`. Normas de calidad en `DIRECTRICES.md`; los números en
 - [x] T10 — `0002_portal.sql`: enlaces y RPC del portal *(pausa del usuario: aplicar 0002)*
 - [x] T11 — Enlace para el cliente (UI del taller + WhatsApp)
 - [x] T12 — Portal del cliente (lectura)
-- [ ] T13 — Portal: aprobar y rechazar con confirmación
+- [x] T13 — Portal: aprobar y rechazar con confirmación
 - [ ] T14 — Aviso en vivo en tablero y ficha (Supabase Realtime)
 - [ ] T15 — Pulido final: accesibilidad, flujo completo y despliegue
 

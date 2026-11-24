@@ -79,6 +79,18 @@ describe("buildHistory", () => {
     expect(h[1].actor).toBe("Sistema");
   });
 
+  it("las decisiones incluyen la descripción del trabajo (objeto o lista embebida)", () => {
+    const h = buildHistory([
+      ev({ id: "a", type: "decision", actor: "cliente", note: "aprobada", to_status: null, order_lines: { description: "Pastillas de freno" } }),
+      ev({ id: "b", type: "decision", actor: "cliente", note: "rechazada", to_status: null, created_at: "2026-03-09T00:00:00Z", order_lines: [{ description: "Filtro de aire" }] }),
+      ev({ id: "c", type: "decision", actor: "cliente", note: "aprobada", to_status: null, created_at: "2026-03-08T00:00:00Z", order_lines: null }),
+    ]);
+    expect(h[0].title).toBe("El cliente aprobó «Pastillas de freno»");
+    expect(h[0].actor).toBe("Cliente");
+    expect(h[1].title).toBe("El cliente rechazó «Filtro de aire»");
+    expect(h[2].title).toBe("El cliente aprobó un trabajo");
+  });
+
   it("lista vacía da historial vacío", () => {
     expect(buildHistory([])).toEqual([]);
   });

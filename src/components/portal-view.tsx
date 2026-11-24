@@ -1,3 +1,4 @@
+import { DecisionActions } from "@/components/decision-actions";
 import type { DecisionView, PortalStep, PortalView } from "@/domain/portal";
 
 const SHELL = "mx-auto w-full max-w-[42rem]";
@@ -105,13 +106,13 @@ function DecisionBadge({ decision }: { decision: DecisionView }) {
         {decision.label}
       </span>
       {decision.decidedAt ? (
-        <span className="ml-2 text-base text-muted">el {decision.decidedAt}</span>
+        <span className="ml-2 text-base text-muted">{` el ${decision.decidedAt}`}</span>
       ) : null}
     </p>
   );
 }
 
-function Lines({ view }: { view: PortalView }) {
+function Lines({ view, token }: { view: PortalView; token: string }) {
   return (
     <section aria-labelledby="trabajos" className="mt-4 rounded-md bg-paper p-4">
       <h2 id="trabajos" className="font-display text-xl font-semibold uppercase">
@@ -134,6 +135,14 @@ function Lines({ view }: { view: PortalView }) {
                   <span className="tabular font-display text-xl font-semibold">{l.lineTotal}</span>
                 </p>
                 <DecisionBadge decision={l.decision} />
+                {l.canDecide ? (
+                  <DecisionActions
+                    token={token}
+                    lineId={l.id}
+                    description={l.description}
+                    amountText={l.totalWithVat}
+                  />
+                ) : null}
               </li>
             ))}
           </ul>
@@ -176,7 +185,7 @@ function Totals({ view }: { view: PortalView }) {
   );
 }
 
-export function PortalView({ view }: { view: PortalView }) {
+export function PortalView({ view, token }: { view: PortalView; token: string }) {
   return (
     <main className={`${SHELL} flex-1 px-4 py-4`}>
       <section aria-labelledby="titulo-estado" className="rounded-md bg-ink px-5 py-6 text-paper">
@@ -204,7 +213,7 @@ export function PortalView({ view }: { view: PortalView }) {
       </section>
 
       <Progress steps={view.steps} />
-      <Lines view={view} />
+      <Lines view={view} token={token} />
       <Totals view={view} />
 
       <section aria-labelledby="taller" className="mt-4 rounded-md bg-paper p-4">

@@ -12,7 +12,7 @@ export const metadata: Metadata = {
 async function Portal({ params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;
   const view = await fetchPortal(token);
-  return view ? <PortalView view={view} /> : <PortalUnavailable />;
+  return view ? <PortalView view={view} token={token} /> : <PortalUnavailable />;
 }
 
 export default function PortalPage({ params }: { params: Promise<{ token: string }> }) {

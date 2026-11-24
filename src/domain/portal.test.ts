@@ -174,6 +174,13 @@ describe("buildPortalView", () => {
     expect(view.lines[0].kindLabel).toBe("Mano de obra");
     expect(view.lines[1].kindLabel).toBe("Recambio");
   });
+  it("importe con IVA de cada línea y quién puede decidir", () => {
+    expect(view.lines.map((l) => norm(l.totalWithVat))).toEqual(["96,80 €", "30,86 €"]);
+    // Solo la pendiente, y solo con la orden esperando aprobación.
+    expect(view.lines.map((l) => l.canDecide)).toEqual([true, false]);
+    const enReparacion = portalViewFromRpc(respuesta({ status: "en_reparacion" }))!;
+    expect(enReparacion.lines.map((l) => l.canDecide)).toEqual([false, false]);
+  });
   it("estado vacío: sin líneas totales a cero", () => {
     const vacio = portalViewFromRpc(respuesta({ lines: [], status: "recibido" }));
     expect(vacio).not.toBeNull();

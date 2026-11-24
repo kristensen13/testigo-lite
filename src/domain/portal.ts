@@ -5,6 +5,7 @@ import {
   ORDER_STATUSES,
   type OrderStatus,
 } from "./order-status";
+import { lineTotalWithVatCents } from "./portal-decision";
 import { err, ok, type Result } from "./result";
 import { lineBaseCents, orderTotals, VAT_BP, type LineDecision } from "./totals";
 
@@ -74,6 +75,10 @@ export interface PortalLineView {
   qtyText: string;
   unitPrice: string;
   lineTotal: string;
+  /** Importe de la línea con IVA incluido (el de la confirmación). */
+  totalWithVat: string;
+  /** Pendiente y con la orden en "Esperando aprobación": se pueden mostrar los botones. */
+  canDecide: boolean;
   decision: DecisionView;
 }
 
@@ -160,6 +165,8 @@ export function buildPortalView(data: PortalResponse): PortalView {
       qtyText: formatQuantity(l.qty_milli),
       unitPrice: formatEuros(l.unit_price_cents),
       lineTotal: formatEuros(lineBaseCents(l.qty_milli, l.unit_price_cents)),
+      totalWithVat: formatEuros(lineTotalWithVatCents(l.qty_milli, l.unit_price_cents, l.vat_bp)),
+      canDecide: data.status === "esperando_aprobacion" && l.decision === "pendiente",
       decision: {
         decision: l.decision,
         label: DECISION_LABELS[l.decision],

@@ -65,7 +65,8 @@ export async function fetchOrderEvents(
 ): Promise<OrderEventRow[]> {
   const { data, error } = await supabase
     .from("order_events")
-    .select("id, type, from_status, to_status, actor, note, created_at")
+    // order_lines(description): la descripción del trabajo decidido, sin N+1.
+    .select("id, type, from_status, to_status, actor, note, created_at, order_lines(description)")
     .eq("order_id", orderId)
     .order("created_at", { ascending: false })
     .limit(200);
