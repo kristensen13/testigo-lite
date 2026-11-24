@@ -69,12 +69,14 @@ test.describe("tablero", () => {
   });
 
   test("criterio 5: cada tarjeta enlaza a su ficha y se opera con teclado", async ({ page }) => {
-    await page.goto("/");
+    // Se acota con el buscador a una sola orden conocida del seed: el recorrido
+    // con Tab no depende de cuántas órdenes (p. ej. las que dejan los E2E) haya.
+    await page.goto("/?q=1234abc");
     const enlace = tarjeta(page, "1234 ABC");
     await expect(enlace).toHaveAttribute("href", /^\/ordenes\/[0-9a-f-]{36}$/);
 
     let enfocado = false;
-    for (let i = 0; i < 40 && !enfocado; i++) {
+    for (let i = 0; i < 15 && !enfocado; i++) {
       await page.keyboard.press("Tab");
       enfocado = await enlace.evaluate((el) => el === document.activeElement);
     }

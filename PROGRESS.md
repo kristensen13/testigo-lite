@@ -8,7 +8,7 @@
 | T4 — Dominio | Hecha | 1 | Aprobada a la primera. Informe: `docs/revisiones/T4-vuelta1.md`. 106 tests de Vitest. Tipo `Result` para errores de entrada. |
 | T5 — Login y rutas protegidas | Hecha | 2 | Vuelta 1: FALLO (directriz 10, el setup E2E agotaba el timeout de 5 s con el servidor en frío). Vuelta 2: APROBADA. Informes: `docs/revisiones/T5-vuelta1.md` y `T5-vuelta2.md`. Logout como `POST /logout` (route handler). El tablero de `/` es provisional hasta T6. |
 | T6 — Tablero con buscador | Hecha | 1 | Aprobada a la primera. Informe: `docs/revisiones/T6-vuelta1.md`. 136 tests de Vitest y 17 E2E. Sin N+1: 1 consulta sin búsqueda, 3 con búsqueda. |
-| T7 — Nueva orden | Pendiente | | |
+| T7 — Nueva orden | Hecha | 2 | Vuelta 1: FALLO (directriz 10: el test de T6 "criterio 5" recorría Tab con tope fijo y dejó de alcanzar la tarjeta al acumularse órdenes E2E). Vuelta 2: APROBADA. Informes: `docs/revisiones/T7-vuelta1.md` y `T7-vuelta2.md`. 142 tests de Vitest y 20 E2E. |
 | T8 — Ficha de la orden | Pendiente | | |
 | T9 — Presupuesto | Pendiente | | |
 | T10 — `0002_portal.sql` | Pendiente | | Pausa del usuario: aplicar `0002_portal.sql`. |
@@ -27,6 +27,7 @@
 - Los E2E hacen unos 3 inicios de sesión reales por ejecución (setup, credenciales incorrectas y flujo login/logout). Cuidado con el límite de Supabase.
 - Next no deja arrancar dos `next dev` en la misma carpeta: si hay uno abierto, el `webServer` de Playwright (puerto 3100) falla. Cierra tu servidor dev antes de lanzar `npm run test:e2e`.
 - Tablero (T6): con 300 órdenes o 200 ids de coincidencia previa corta sin avisar al usuario (convendría un aviso al llegar al límite), y `ilike '%x%'` no usa los índices btree (aceptable a escala de taller; un índice `pg_trgm` sería una mejora futura). El E2E solo cubre `%` y `_` en la búsqueda; las comas, paréntesis y puntos no inyectan filtros porque `.or()` solo recibe UUID de la BD.
+- Acumulación de órdenes E2E (T7): cada ejecución completa del E2E crea ~4 órdenes `E2E…` que el taller no puede borrar (sin política delete, sin `service_role`). El tablero limita a 300 órdenes por `created_at` descendente; con ~290 órdenes E2E acumuladas (unas 60–70 ejecuciones) dejarían de verse las del seed y fallarían los tests del tablero que buscan órdenes del seed sin `?q=` ("criterio 1", "criterio 6" y el de 360 px). Se recupera ejecutando `supabase/seed.sql`, que limpia las filas E2E.
 - Observaciones menores de `testing` en T3 (sin bloquear): el `insert({})` de anon solo comprueba que hay error, no su código; el test de borrado de orden admite error o 0 filas.
 - Aviso de Next: ignora un `package-lock.json` en `C:\Users\Wilson`; se arreglaría con `turbopack.root` (no tocado).
 
