@@ -1,36 +1,72 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Testigo Lite
 
-## Getting Started
+Aplicación Next.js 16 (App Router) + TypeScript + Tailwind 4, con Supabase (Postgres + Auth), desplegada en Vercel. La definición del producto está en `PRODUCT.md`.
 
-First, run the development server:
+## Puesta en marcha
 
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Abre <http://localhost:3000>. Las variables de entorno van en `.env.local` (nunca se versiona).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Scripts
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+| Comando | Qué hace |
+|---|---|
+| `npm run dev` | Servidor de desarrollo |
+| `npm run build` | Compilación de producción |
+| `npm run lint` | ESLint |
+| `npx tsc --noEmit` | Comprobación de tipos |
+| `npm test` | Tests unitarios (Vitest) |
+| `npm run test:e2e` | Tests de flujos (Playwright) |
 
-## Learn More
+## Cómo trabaja el equipo de agentes
 
-To learn more about Next.js, take a look at the following resources:
+El trabajo se reparte entre tres agentes. El **orquestador** (`CLAUDE.md`) no programa: lleva el plan y el bucle. **Develop** programa y **Testing** revisa contra `DIRECTRICES.md`. Los subagentes no pueden llamarse entre sí, así que el bucle lo lleva el orquestador.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```
+PLAN.md ──► tarea T<n>
+               │
+               ▼
+        ┌─────────────┐
+        │ ORQUESTADOR │  (CLAUDE.md)
+        └──────┬──────┘
+               │ 1. tarea + criterios de aceptación
+               ▼
+        ┌─────────────┐
+        │   DEVELOP   │  programa + escribe tests
+        └──────┬──────┘
+               │ 2. código listo
+               ▼
+        ┌─────────────┐   revisa contra DIRECTRICES.md
+        │   TESTING   │   y ejecuta lint, tipos, build, tests
+        └──────┬──────┘   informe: docs/revisiones/T<n>-vuelta<k>.md
+               │
+       ┌───────┴────────┐
+   FALLOS:            APROBADO
+       │                  │
+       ▼                  ▼
+ el orquestador     marca la tarea en PLAN.md
+ pasa los fallos    actualiza PROGRESS.md
+ tal cual a DEVELOP commit "feat(T<n>): ... (k vueltas)"
+ y repite TESTING          │
+ (máx. 5 vueltas;          ▼
+  si no pasa, para    siguiente tarea
+  y avisa al usuario)
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+### Archivos del sistema
 
-## Deploy on Vercel
+- `CLAUDE.md` — orquestador y flujo obligatorio
+- `.claude/agents/develop.md` — subagente que programa
+- `.claude/agents/testing.md` — subagente que revisa (no toca código)
+- `DIRECTRICES.md` — normas comprobables
+- `PLAN.md` / `PROGRESS.md` — tareas y avance
+- `docs/revisiones/` — informes de revisión por tarea y vuelta
+- `.claude/settings.json` — impide a los agentes leer `.env*`
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+### Seguridad
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Ninguna clave va en el código ni en el repo. Los secretos viven en `.env.local` (ignorado por git) y en las variables de entorno de Vercel.
