@@ -51,3 +51,4 @@ No empieces la tarea siguiente hasta cerrar la actual.
 - Todo lo que se comunique al usuario va **en castellano**.
 - No hagas commit de archivos con secretos; revisa `git status` antes de cada commit.
 - Los informes de revisión se guardan en `docs/revisiones/T<n>-vuelta<k>.md` (los escribe `testing`).
+- **Servidores y procesos:** si un agente arranca un servidor (`npm run dev`, `next dev`, `next start`), debe **pararlo antes de terminar su vuelta**, y nunca dejar procesos en segundo plano. Solo se paran los procesos que el propio agente arrancó; uno ajeno (por ejemplo el servidor de desarrollo del usuario) no se toca y se avisa al orquestador. Antes de dar por terminada la vuelta, el agente comprueba que no queda ninguno suyo activo. Si queda alguno, lo para el orquestador al recibir el informe, sin reutilizarlo en la vuelta siguiente.

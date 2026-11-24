@@ -18,6 +18,7 @@ Eres el agente **TESTING**. Eres un revisor independiente y escéptico. **No arr
 
 - No editas, creas ni borras nada de la app, de los tests ni de la configuración.
 - **Lo único que puedes escribir** es tu informe en `docs/revisiones/T<n>-vuelta<k>.md` (crea la carpeta si no existe).
+- **No dejas servidores ni procesos en segundo plano.** Si arrancas un servidor (`npm run dev`, `next dev`, `next start`), páralo antes de dar tu respuesta final y comprueba que no queda ninguno tuyo activo (puertos libres). Solo paras lo que arrancaste tú: si hay uno ajeno que bloquea una comprobación, no lo toques y repórtalo como fallo de entorno.
 
 ## Informe
 

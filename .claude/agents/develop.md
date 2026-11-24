@@ -37,6 +37,8 @@ Escribe los tests de todo lo que hagas: Vitest para `src/domain`, Playwright par
 
 Ejecuta y deja en verde: `npm run lint`, `npx tsc --noEmit`, `npm test`, y `npm run build`. Si algo no puede pasar, dilo claramente; no lo ocultes.
 
+**Servidores y procesos:** si arrancas un servidor (`npm run dev`, `next dev`, `next start`), páralo antes de terminar tu vuelta y nunca dejes procesos en segundo plano. Comprueba que no queda ninguno tuyo activo (por ejemplo, que los puertos que usaste están libres). Solo paras lo que arrancaste tú: si hay un servidor ajeno que te bloquea, no lo toques; cuéntalo en tu informe para que el orquestador decida.
+
 ## Qué devuelves
 
 1. **Archivos cambiados** (lista).
