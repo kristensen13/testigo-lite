@@ -13,7 +13,7 @@
 | T9 — Presupuesto | Hecha | 1 | Aprobada a la primera. Informe: `docs/revisiones/T9-vuelta1.md`. 187 tests de Vitest, 33 E2E y el spec de BD `tests/rls/lineas-decididas.spec.ts`. El precio 0 se rechaza (el criterio 2 lista "cero"); la BD lo permitiría. |
 | T10 — `0002_portal.sql` | Hecha | 3 (2 revisiones estáticas + 1 de ejecución), sin fallos | Informes: `docs/revisiones/T10-vuelta1.md`, `T10-vuelta2.md` y `T10-vuelta3.md`. Vueltas 1 y 2: APROBADO estático antes de aplicar (la 2 añadió, a petición del usuario, el índice único parcial `public_links_one_active_idx` y el bloqueo `for update` de la orden en `create_public_link` y `revoke_public_link`). Vuelta 3: el usuario aplicó `0002` y `testing` ejecutó `portal.spec.ts` contra la BD (21/21) y el proyecto `rls` completo (57/57): APROBADO. No ha hecho falta `0003`. |
 | T11 — Enlace para el cliente | Hecha | 1 | Aprobada a la primera. Informe: `docs/revisiones/T11-vuelta1.md`. 206 tests de Vitest y 38 E2E. El token solo se ve al crearlo; el E2E comprueba que deja de funcionar llamando a `portal_get` con la clave anónima (la página `/p/<token>` llega en T12). |
-| T12 — Portal del cliente (lectura) | Pendiente | | |
+| T12 — Portal del cliente (lectura) | Hecha | 1 | Aprobada a la primera. Informe: `docs/revisiones/T12-vuelta1.md`. 235 tests de Vitest y 44 E2E. Cliente de BD sin sesión ni cookies; respuesta de `portal_get` validada con zod estricto. Token inválido, malformado, caducado y revocado dan la misma página. |
 | T13 — Portal: aprobar y rechazar | Pendiente | | |
 | T14 — Aviso en vivo (Realtime) | Pendiente | | |
 | T15 — Pulido final | Pendiente | | |
@@ -33,6 +33,8 @@
 - T10 y T14: `0002` escribe además los eventos `enlace_creado` y `enlace_revocado` (válidos en `0001`, ya los pinta `src/domain/order-detail.ts`) y estos también viajarán por Realtime: el aviso en vivo de T14 debe filtrar por `type = 'decision'`.
 - Si la publicación `supabase_realtime` no existiera, `0002` solo avisa con un NOTICE y habría que añadir `order_lines` y `order_events` a mano antes de T14.
 - T11 (observaciones de `testing`, sin bloquear): el origen de la URL del enlace sale de las cabeceras de la petición (host validado con regex y protocolo con enum); un atacante no puede fijar la cabecera de otro usuario y el enlace solo lo ve quien lo crea, pero una lista blanca de hosts en producción sería una mitigación opcional. El estado revocado se muestra como "Enlace revocado" (el criterio decía "Revocado"; mismo significado). El caso de teléfono no válido para WhatsApp (botón oculto con aviso) no tiene E2E propio.
+- T12 (observaciones de `testing`, sin bloquear): el proxy llama a `getUser` en `/p/*`; no altera el cuerpo del portal (la página no usa cookies) pero añade latencia y podría emitir `Set-Cookie` si el navegador tiene sesión de taller (valorar excluir `/p/*` del refresco de sesión en el proxy). Un token malformado responde más rápido que uno bien formado porque no llama a la BD (solo revela la forma del token, no su validez). El E2E de caducidad hace un inicio de sesión extra por la API REST de auth.
+- Aviso `Date.now()` de `<WorkshopName />` en `next dev` (layout del taller): anterior a T12, sigue sin afectar al build ni a los tests; `develop` sugiere revisarlo en T15.
 - Observaciones menores de `testing` en T3 (sin bloquear): el `insert({})` de anon solo comprueba que hay error, no su código; el test de borrado de orden admite error o 0 filas.
 - Aviso de Next: ignora un `package-lock.json` en `C:\Users\Wilson`; se arreglaría con `turbopack.root` (no tocado).
 
