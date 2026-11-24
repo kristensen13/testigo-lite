@@ -245,8 +245,10 @@ Producto en `PRODUCT.md`. Normas de calidad en `DIRECTRICES.md`; los números en
 
 **Entrega**, en la migración `0002_portal.sql`:
 
-- `create_public_link(p_order_id, p_ttl_days default 7)` (`security invoker`): comprueba que la orden es del taller, revoca el enlace activo anterior, genera el token con `encode(extensions.gen_random_bytes(32), 'hex')` (64 caracteres hexadecimales), guarda su SHA-256 y devuelve el token.
-- `revoke_public_link(p_order_id)`.
+- **Caducidad (`public_links_expiry_chk`):** la restricción de `0001` (`expires_at > created_at`) impide probar un enlace caducado. En `0002` se sustituye (`drop constraint` + `add constraint`) por `expires_at >= created_at`, de modo que un TTL de 0 días da un enlace que nace ya caducado.
+- **Escritura de `public_links` solo por funciones:** se hace `revoke insert, update, delete on public.public_links from authenticated` y se eliminan (`drop policy`) las políticas de insert/update de `0001` sobre esa tabla. `authenticated` conserva el `select` (la UI muestra el estado del enlace; el test de aislamiento de T3 lee la tabla con `select *`). `anon` no tiene ningún privilegio sobre la tabla.
+- `create_public_link(p_order_id, p_ttl_days default 7)` (**`security definer`**, `search_path=''`; ya no puede ser `security invoker` porque el usuario no tiene insert directo): comprueba **dentro de la función** que la orden pertenece al taller del usuario (`current_workshop_id()`), valida `p_ttl_days` entre 0 y 90 (0 = caduca al instante, necesario para probar la caducidad), revoca el enlace activo anterior de esa orden, genera el token con `encode(extensions.gen_random_bytes(32), 'hex')` (64 caracteres hexadecimales), guarda su SHA-256 y devuelve el token. Ejecutable solo por `authenticated`.
+- `revoke_public_link(p_order_id)` (`security definer`, `search_path=''`): mismas comprobaciones de pertenencia al taller; marca `revoked_at` del enlace activo. Ejecutable solo por `authenticated`.
 - `portal_get(p_token)`: `security definer`, `search_path=''`, ejecutable por `anon`. Devuelve un `jsonb` con solo la lista blanca de campos de `PRODUCT.md`, o `null` si el token es inválido, está caducado o revocado.
 - `portal_decide(p_token, p_line_id, p_decision)`: `security definer`. Exige enlace válido, orden en "Esperando aprobación", línea de esa orden y pendiente, y decisión en {aprobada, rechazada}. Escribe `decision`, `decided_at` y un evento con `actor = 'cliente'`. Devuelve el nuevo estado de la línea.
 - `grant execute` solo a `anon` y `authenticated` para estas funciones y `revoke` del resto.
@@ -258,11 +260,13 @@ Producto en `PRODUCT.md`. Normas de calidad en `DIRECTRICES.md`; los números en
 2. Test con anon, tras aplicar la migración:
    - un token aleatorio no devuelve nada;
    - un token válido devuelve **solo** las claves de la lista blanca (el test compara la lista exacta de claves);
-   - con `expires_at` en el pasado (lo actualiza el usuario del taller), `portal_get` y `portal_decide` no dan acceso;
+   - con un enlace creado con `p_ttl_days = 0` (ya caducado), `portal_get` y `portal_decide` no dan acceso;
    - con `revoked_at` puesto, tampoco.
 3. `portal_decide` falla si la orden no está en "Esperando aprobación", si la línea es de otra orden y si la línea ya está decidida (no se puede decidir dos veces).
 4. Crear un enlace nuevo revoca el anterior.
-5. El usuario del taller 2 no puede crear un enlace para una orden del taller 1.
+5. El usuario del taller 2 no puede crear ni revocar un enlace de una orden del taller 1.
+6. El usuario del taller no puede hacer `insert`, `update` ni `delete` directos sobre `public_links` (`permission denied`), pero sí crear y revocar enlaces con las funciones. `anon` no puede ejecutar `create_public_link` ni `revoke_public_link`, ni leer `public_links`.
+7. `p_ttl_days` fuera de 0..90 se rechaza; con 0 se crea un enlace ya caducado (la restricción `expires_at >= created_at` lo admite).
 
 ---
 
