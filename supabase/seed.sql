@@ -58,7 +58,7 @@ begin
     (v_user_1, v_ws1, 'Recepción Demo Norte'),
     (v_user_2, v_ws2, 'Recepción Demo Sur');
 
-  -- 4. Órdenes demo (n 1..10 = taller 1, n 11..12 = taller 2) ------------------------
+  -- 4. Órdenes demo (n 11..12 = taller 2; el resto, taller 1) ------------------------
   drop table if exists pg_temp.seed_orders;
   create temp table seed_orders (
     n          integer primary key,
@@ -84,18 +84,22 @@ begin
     (9,  'Sofía Vidal Marín',     '600 000 009', '3344 FGH', 'Dacia Sandero',             45200, 'Cambio de pastillas y discos delanteros.',               'listo',              250),
     (10, 'Iván Prieto Cano',      '600 000 010', '5566 JKL', 'Hyundai i30',              109400, 'El aire acondicionado no enfría.',                       'entregado',          400),
     (11, 'Teresa Ibáñez Roca',    '600 000 091', '9999 ZZZ', 'Kia Ceed',                  51000, 'Revisión general.',                                      'recibido',             6),
-    (12, 'Hugo Sanz Alonso',      '600 000 092', '8888 YYY', 'Mazda 3',                   80200, 'Fallo de batería.',                                      'diagnostico',         28);
+    (12, 'Hugo Sanz Alonso',      '600 000 092', '8888 YYY', 'Mazda 3',                   80200, 'Fallo de batería.',                                      'diagnostico',         28),
+    -- Taller 1, entregadas hace más de 30 días (para probar "Ver entregadas anteriores").
+    -- Su updated_at (fecha de entrega) se fija más abajo: ~45 y ~90 días.
+    (13, 'Óscar Valverde Pinto',  '600 000 013', '6150 RTM', 'Skoda Fabia',               64800, 'Cambio de correa de distribución.',                      'entregado',         1110),
+    (14, 'Lucía Escribano Moya',  '600 000 014', '7420 CNP', 'Nissan Qashqai',           132500, 'Revisión de frenos y cambio de líquido.',                'entregado',         2190);
 
   -- Ids fijos: clientes 10..., vehículos 20..., órdenes 30..., líneas 40...
   insert into public.customers (id, workshop_id, name, phone)
   select ('10000000-0000-4000-8000-' || lpad(s.n::text, 12, '0'))::uuid,
-         case when s.n <= 10 then v_ws1 else v_ws2 end,
+         case when s.n not in (11, 12) then v_ws1 else v_ws2 end,
          s.cust_name, s.phone
   from seed_orders s;
 
   insert into public.vehicles (id, workshop_id, customer_id, plate, make_model, km)
   select ('20000000-0000-4000-8000-' || lpad(s.n::text, 12, '0'))::uuid,
-         case when s.n <= 10 then v_ws1 else v_ws2 end,
+         case when s.n not in (11, 12) then v_ws1 else v_ws2 end,
          ('10000000-0000-4000-8000-' || lpad(s.n::text, 12, '0'))::uuid,
          s.plate, s.make_model, s.km
   from seed_orders s;
@@ -104,7 +108,7 @@ begin
   -- estado final para que el historial (triggers) quede coherente.
   insert into public.orders (id, workshop_id, customer_id, vehicle_id, complaint, km_in, created_at)
   select ('30000000-0000-4000-8000-' || lpad(s.n::text, 12, '0'))::uuid,
-         case when s.n <= 10 then v_ws1 else v_ws2 end,
+         case when s.n not in (11, 12) then v_ws1 else v_ws2 end,
          ('10000000-0000-4000-8000-' || lpad(s.n::text, 12, '0'))::uuid,
          ('20000000-0000-4000-8000-' || lpad(s.n::text, 12, '0'))::uuid,
          s.complaint, s.km,
@@ -118,6 +122,19 @@ begin
        where id = ('30000000-0000-4000-8000-' || lpad(r.n::text, 12, '0'))::uuid;
     end loop;
   end loop;
+
+  -- Fecha de entrega (updated_at) de las dos entregadas antiguas: 30 h después de
+  -- crearlas, es decir, hace ~45 y ~90 días. El trigger orders_touch_updated_at
+  -- fuerza now() en cada update, así que se desactiva solo para este paso (el seed
+  -- corre como propietario) y se vuelve a activar justo después.
+  alter table public.orders disable trigger orders_touch_updated_at;
+  update public.orders
+     set updated_at = created_at + interval '30 hours'
+   where id in (
+     ('30000000-0000-4000-8000-' || lpad('13', 12, '0'))::uuid,
+     ('30000000-0000-4000-8000-' || lpad('14', 12, '0'))::uuid
+   );
+  alter table public.orders enable trigger orders_touch_updated_at;
 
   -- Fechas del historial: 6 h entre un paso y el siguiente a partir de la creación.
   update public.order_events e
@@ -160,6 +177,10 @@ begin
     (9,  3, 'mano_de_obra', 'Sustitución de pastillas y discos',               1500,  4500, 'aprobada'),
     (10, 1, 'recambio',     'Gas refrigerante R134a',                          1000,  3500, 'aprobada'),
     (10, 2, 'mano_de_obra', 'Carga y revisión del aire acondicionado',         1000,  4500, 'aprobada'),
+    (13, 1, 'recambio',     'Kit de distribución',                             1000, 12800, 'aprobada'),
+    (13, 2, 'mano_de_obra', 'Sustitución de la correa de distribución',        2500,  4500, 'aprobada'),
+    (14, 1, 'recambio',     'Líquido de frenos DOT4 (1 litro)',                1000,  1500, 'aprobada'),
+    (14, 2, 'mano_de_obra', 'Purga y cambio del líquido de frenos',             800,  4500, 'aprobada'),
     -- Taller 2
     (12, 1, 'mano_de_obra', 'Revisión de batería y alternador',                1000,  4000, 'pendiente')
   ) as l (n, pos, kind, description, qty_milli, price_cents, decision)
@@ -175,6 +196,6 @@ begin
 
   drop table if exists pg_temp.seed_orders;
 
-  raise notice 'Seed aplicado: 2 talleres, 2 usuarios enlazados (%, %), 12 órdenes demo.', v_email_1, v_email_2;
+  raise notice 'Seed aplicado: 2 talleres, 2 usuarios enlazados (%, %), 14 órdenes demo (2 de ellas entregadas hace más de 30 días).', v_email_1, v_email_2;
 end
 $seed$;

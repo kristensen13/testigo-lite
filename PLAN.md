@@ -29,6 +29,7 @@ Producto en `PRODUCT.md`. Normas de calidad en `DIRECTRICES.md`; los números en
 - [x] T13 — Portal: aprobar y rechazar con confirmación
 - [x] T14 — Aviso en vivo en tablero y ficha (Supabase Realtime)
 - [x] T15 — Pulido final: accesibilidad, flujo completo y despliegue *(hecha hasta antes del despliegue: el despliegue en Vercel lo hace el usuario, ver README)*
+- [x] T16 — Tablero: todas las no entregadas, entregadas de los últimos 30 días y avisos de límite *(pausa del usuario: re-ejecutar `seed.sql`)*
 
 ---
 
@@ -363,3 +364,37 @@ Producto en `PRODUCT.md`. Normas de calidad en `DIRECTRICES.md`; los números en
 3. `git grep` de secretos y de `service_role`, y `git ls-files | grep -i "^\.env" | grep -v "^\.env\.example$"`, no devuelven nada; y `.env.example` solo tiene nombres de variables, sin valores.
 4. El README permite poner la app en marcha sin otro documento.
 5. `npm run lint`, `npx tsc --noEmit`, `npm run build`, `npm test` y `npm run test:e2e` terminan en verde.
+
+---
+
+## T16 — Tablero: todas las no entregadas, entregadas de los últimos 30 días y avisos de límite
+
+**Directrices:** 7, 22–29, 31, 33, 34.
+
+**Por qué:** hoy el tablero ordena todas las órdenes por `created_at` descendente y corta a 300 (`BOARD_LIMIT` en `src/lib/board.ts`) sin avisar. Con el tiempo, las órdenes entregadas (que se acumulan) desplazarían a órdenes activas antiguas y el taller dejaría de verlas sin enterarse.
+
+**Pausa del usuario.** T16 amplía `supabase/seed.sql` (dos órdenes entregadas hace más de 30 días, para poder probar la vista de anteriores). El usuario debe re-ejecutar `seed.sql` en el SQL Editor antes de que `testing` ejecute los E2E de esta tarea. No hay migración nueva: el criterio de "fecha de entrega" es `orders.updated_at` de las órdenes en estado `entregado` (estado terminal: `orders_guard` impide cambiarlo y la app no edita la orden después).
+
+**Reglas del producto**
+
+- **Vista por defecto del tablero:** SIEMPRE todas las órdenes no entregadas (Recibido, Diagnóstico, Esperando aprobación, En reparación, Listo) y SOLO las entregadas en los últimos 30 días (`updated_at >= ahora − 30 días`).
+- **Enlace "Ver entregadas anteriores":** aparece solo si existe al menos una orden entregada hace más de 30 días. Lleva a la vista de anteriores (`/?entregadas=anteriores`, que mantiene el buscador `q`), que lista únicamente las entregadas hace más de 30 días, de más recientes a más antiguas, con enlace "Volver al tablero".
+- **Buscador:** funciona igual (matrícula normalizada o nombre de cliente) en las dos vistas, y busca dentro de lo que cada vista muestra. Para encontrar una entregada antigua se entra en "Ver entregadas anteriores" y se busca allí.
+- **Límites de seguridad con aviso visible.** Constantes con nombre en `src/domain` o `src/lib`: no entregadas `1000`, entregadas de los últimos 30 días `300`, vista de anteriores `200`. Si se alcanza (y se superaría) alguno de ellos, el tablero lo dice con un aviso visible y en castellano (texto, no solo `aria-live`) que indica qué se recorta (p. ej. "Se muestran las 1000 órdenes abiertas más recientes; hay más. Usa el buscador para encontrar una concreta"), y nunca recorta en silencio. Por debajo de los límites no hay aviso. Para saber si se superó un límite se pide `límite + 1` filas (o equivalente) y se muestran `límite`.
+- **Sin N+1:** número fijo de consultas (sin búsqueda: no entregadas, entregadas recientes y comprobación de si hay anteriores; con búsqueda se añaden las de resolución de ids de vehículos y clientes), con solo las columnas necesarias.
+
+**Entrega**
+
+- Lógica pura en `src/domain` (límites, fecha de corte de 30 días a partir de un `now` inyectable, decisión de si hay que avisar, textos de aviso en castellano, vista del enlace) con Vitest; consultas en `src/lib` (extender o sustituir las de `src/lib/board.ts` manteniendo el cliente falso de sus tests); `src/app/(taller)/page.tsx` con el aviso, el enlace y la vista de anteriores (`searchParams` asíncrono; validar con zod `q` y `entregadas`); estados de carga, error y vacío (también para la vista de anteriores sin resultados).
+- `supabase/seed.sql`: añadir 2 órdenes entregadas del taller 1 con `updated_at` de hace unos 45 y 90 días (con matrículas, clientes y teléfonos ficticios propios, distintas de las existentes), sin romper el resto del seed, sigue siendo re-ejecutable (limpia y recrea). Actualizar el README si el seed lo menciona (nº de órdenes del seed).
+
+**Criterios de aceptación**
+
+1. Con el seed (taller 1) el tablero por defecto muestra todas las órdenes no entregadas y la entregada reciente del seed (la de hace ~17 días), y NO muestra las entregadas hace más de 30 días (E2E).
+2. El enlace "Ver entregadas anteriores" aparece cuando existen entregadas anteriores (E2E con el seed) y NO aparece cuando no existen (test con cliente falso o de componente); tiene nombre accesible y se opera con teclado.
+3. La vista de anteriores (`/?entregadas=anteriores`) lista solo las entregadas hace más de 30 días (las dos nuevas del seed, de más recientes a más antiguas) y ninguna no entregada ni reciente; tiene "Volver al tablero", estado vacío y de carga/error útiles y el buscador funciona (E2E: buscar la matrícula de una de ellas la encuentra y las otras desaparecen).
+4. Una orden no entregada antigua (más antigua que cualquier entregada) sigue apareciendo aunque haya más de 300 órdenes más recientes (test con cliente falso: con 1 orden activa antigua y muchas entregadas recientes, la activa se devuelve).
+5. Los límites avisan: con un cliente falso que devuelve `límite + 1` filas se muestra el aviso correspondiente en castellano (y solo ese) y se muestran exactamente `límite` filas; con `límite` filas o menos no hay aviso. Pruebas unitarias del dominio/consultas y de renderizado del aviso (no hace falta crear miles de órdenes reales).
+6. El número de consultas es fijo y no crece con el número de órdenes (test con cliente falso con 2 y con 50 órdenes, y con búsqueda).
+7. Los E2E y tests existentes siguen pasando (los de `tablero.spec.ts` que buscan órdenes del seed, `en-vivo`, `flujo-completo`, etc.); el aviso en vivo y el chip de decisiones siguen funcionando en la vista por defecto.
+8. Accesibilidad: el aviso de límite y el enlace son accesibles (texto, contraste, 360 px sin scroll horizontal, objetivos ≥ 44 px) y `axe` sigue sin violaciones en el tablero (incluida la vista de anteriores).

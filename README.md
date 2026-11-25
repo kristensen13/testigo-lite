@@ -45,7 +45,7 @@ v_email_1 constant text := 'demo@example.com';    -- usuario del taller 1
 v_email_2 constant text := 'demo2@example.com';   -- usuario del taller 2
 ```
 
-Pega el archivo en el SQL Editor y ejecútalo. El seed es **re-ejecutable**: cada vez borra y recrea los dos talleres demo y todo lo que cuelga de ellos, así que también **limpia las órdenes `E2E…` que dejan los tests**.
+Pega el archivo en el SQL Editor y ejecútalo. El seed es **re-ejecutable**: cada vez borra y recrea los dos talleres demo y todo lo que cuelga de ellos, así que también **limpia las órdenes `E2E…` que dejan los tests**. Crea 14 órdenes demo (12 en el taller 1 y 2 en el taller 2); dos de las del taller 1 están entregadas hace unos 45 y 90 días y solo se ven con «Ver entregadas anteriores».
 
 ### 5. Variables de entorno
 
@@ -96,7 +96,7 @@ Antes de lanzar los E2E, ten en cuenta:
 
 - **No dejes un `next dev` abierto en esta carpeta.** Playwright arranca su propio servidor en el puerto **3100** y Next no admite dos servidores de desarrollo en la misma carpeta. Ciérralo antes de ejecutar `npm run test:e2e`.
 - **Supabase limita los inicios de sesión** por hora y por IP. Cada ejecución completa hace unos pocos inicios de sesión reales; si salta el límite, espera unos minutos y no encadenes ejecuciones completas.
-- **Los tests dejan órdenes `E2E…` en la base de datos** (el taller no puede borrar órdenes). Con muchas ejecuciones se acumulan; el tablero muestra como máximo las 300 más recientes. Para limpiarlas, vuelve a ejecutar `supabase/seed.sql`.
+- **Los tests dejan órdenes `E2E…` en la base de datos** (el taller no puede borrar órdenes). Con muchas ejecuciones se acumulan; el tablero muestra siempre todas las órdenes no entregadas (hasta 1000) y las entregadas de los últimos 30 días (hasta 300), y avisa si algún límite recorta la lista. Para limpiarlas, vuelve a ejecutar `supabase/seed.sql`.
 
 ## Arquitectura
 

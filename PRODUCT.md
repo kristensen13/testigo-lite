@@ -15,7 +15,7 @@ Este documento define el producto. Las tareas están en `PLAN.md`, las normas de
 **Incluye**
 
 - Login del taller con email y contraseña (Supabase Auth). Cada usuario pertenece a un taller.
-- Tablero de órdenes por estado, con buscador por matrícula o por cliente.
+- Tablero de órdenes por estado, con buscador por matrícula o por cliente. Siempre muestra todas las órdenes no entregadas y solo las entregadas de los últimos 30 días (la fecha de entrega es `updated_at` de la orden en estado `entregado`, que es terminal); un enlace "Ver entregadas anteriores" lleva a las más antiguas. Si se alcanza algún límite de seguridad (1000 abiertas, 300 entregadas recientes, 200 anteriores), el tablero lo avisa con un texto visible y nunca recorta en silencio.
 - Nueva orden: cliente (nombre, teléfono), vehículo (matrícula, marca/modelo, km) y avería que cuenta el cliente.
 - Ficha de la orden: trabajos del presupuesto, totales, cambio de estado e historial.
 - Botón "Enlace para el cliente": crea `/p/<token>` y lo comparte por WhatsApp (`wa.me` con texto).
