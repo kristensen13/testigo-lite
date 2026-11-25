@@ -1,5 +1,6 @@
 import { Suspense } from "react";
 import { redirect } from "next/navigation";
+import { LiveUpdates } from "@/components/live-updates";
 import { getWorkshopName } from "@/lib/session";
 
 async function WorkshopName() {
@@ -33,6 +34,8 @@ export default function TallerLayout({ children }: { children: React.ReactNode }
         </div>
       </header>
       {children}
+      {/* Una sola vez para tablero y ficha: el layout persiste al navegar entre ellas. */}
+      <LiveUpdates />
     </>
   );
 }

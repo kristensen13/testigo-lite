@@ -85,7 +85,7 @@ Transiciones: solo al estado siguiente o al anterior. **Entregado** es terminal.
 - **Variables:** `NEXT_PUBLIC_*` solo para la URL y la clave anónima de Supabase. Los secretos viven en `.env.local` (ignorado por git) y en las variables de entorno de Vercel. Nadie lee ni muestra `.env*`.
 - **Validación:** toda entrada de Server Actions y route handlers se valida con zod en el servidor.
 - **Migraciones:** `supabase/migrations/0001_init.sql`, `0002_portal.sql`, `0003_…`. Nunca se edita una migración ya aplicada. Se aplican a mano en el SQL Editor de Supabase (no hay Supabase CLI).
-- **Aviso en vivo:** Supabase Realtime (`postgres_changes`) sobre las líneas y el historial; las políticas de lectura por taller filtran lo que recibe cada usuario.
+- **Aviso en vivo:** Supabase Realtime (`postgres_changes`) sobre las líneas y el historial; las políticas de lectura por taller filtran lo que recibe cada usuario. El aviso solo se genera para decisiones del cliente: nace de un UPDATE de `order_lines` con `decision` distinta de `pendiente` (solo lo produce `portal_decide`), y los eventos `enlace_creado` y `enlace_revocado` se descartan en el navegador. El filtro `type = 'decision'` se aplica en el cliente (función pura `interpretChange`) y no en el servidor, porque Realtime valida las columnas del filtro con el privilegio SELECT de `anon` y `order_events` no se lo concede (y concedérselo sería un agujero).
 
 ## Dirección visual
 

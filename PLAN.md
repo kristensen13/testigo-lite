@@ -27,7 +27,7 @@ Producto en `PRODUCT.md`. Normas de calidad en `DIRECTRICES.md`; los números en
 - [x] T11 — Enlace para el cliente (UI del taller + WhatsApp)
 - [x] T12 — Portal del cliente (lectura)
 - [x] T13 — Portal: aprobar y rechazar con confirmación
-- [ ] T14 — Aviso en vivo en tablero y ficha (Supabase Realtime)
+- [x] T14 — Aviso en vivo en tablero y ficha (Supabase Realtime)
 - [ ] T15 — Pulido final: accesibilidad, flujo completo y despliegue
 
 ---
@@ -328,7 +328,7 @@ Producto en `PRODUCT.md`. Normas de calidad en `DIRECTRICES.md`; los números en
 
 **Entrega:** un componente cliente pequeño (`"use client"`, por ejemplo `src/components/LiveUpdates.tsx`) montado en el tablero y en la ficha.
 
-- Se suscribe, con el cliente de navegador, a `postgres_changes` de `order_lines` y `order_events`, sin filtros propios (las políticas select por taller ya filtran lo que recibe cada usuario).
+- Se suscribe, con el cliente de navegador, a `postgres_changes` de `order_lines` y `order_events`, sin filtros propios (las políticas select por taller ya filtran lo que recibe cada usuario). **Nota de implementación:** el filtro de servidor `type=eq.decision` no es posible (Realtime lo rechaza porque `anon` no tiene SELECT en `order_events`), así que el filtro por `type = 'decision'` se hace en el cliente (`interpretChange`, en `src/domain`) y el texto del aviso sale del UPDATE de `order_lines` con decisión aprobada o rechazada, que trae la descripción del trabajo.
 - Al llegar un cambio llama a `router.refresh()`, con un *debounce* corto para agrupar ráfagas.
 - Muestra un aviso visible dentro de una región `aria-live="polite"`, con un texto como "El cliente ha aprobado «X»" o "El cliente ha rechazado «X»". Se puede cerrar y se apaga solo pasados unos segundos.
 - Se desuscribe al desmontarse (`removeChannel`) y no deja canales duplicados.
