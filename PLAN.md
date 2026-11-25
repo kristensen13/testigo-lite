@@ -28,7 +28,7 @@ Producto en `PRODUCT.md`. Normas de calidad en `DIRECTRICES.md`; los números en
 - [x] T12 — Portal del cliente (lectura)
 - [x] T13 — Portal: aprobar y rechazar con confirmación
 - [x] T14 — Aviso en vivo en tablero y ficha (Supabase Realtime)
-- [ ] T15 — Pulido final: accesibilidad, flujo completo y despliegue
+- [x] T15 — Pulido final: accesibilidad, flujo completo y despliegue *(hecha hasta antes del despliegue: el despliegue en Vercel lo hace el usuario, ver README)*
 
 ---
 
@@ -336,8 +336,8 @@ Producto en `PRODUCT.md`. Normas de calidad en `DIRECTRICES.md`; los números en
 
 **Criterios de aceptación**
 
-1. E2E con dos contextos: el taller (con sesión) tiene el tablero abierto y el cliente (sin sesión) aprueba un trabajo en `/p/<token>`. En menos de 5 s, sin recargar, el chip de la tarjeta pasa de "0/3" a "1/3" y aparece el aviso "El cliente ha aprobado «X»".
-2. Lo mismo con la ficha abierta: la línea muestra la decisión y su fecha y el historial gana el evento, sin recargar y en menos de 5 s.
+1. E2E con dos contextos: el taller (con sesión) tiene el tablero abierto y el cliente (sin sesión) aprueba un trabajo en `/p/<token>`. En menos de 5 s, sin recargar, aparece el aviso "El cliente ha aprobado «X»" (latencia de Realtime, comprobada con umbral estricto), y el chip de la tarjeta pasa de "0/3" a "1/3" sin recargar la página (el tiempo del refresco se registra pero **no** tiene umbral de 5 s: espera amplia de hasta 30 s). *Decisión del usuario en T15 (vuelta 3): el refresco del tablero depende de la latencia de red hacia Supabase, que en E2E contra `next dev` da valores atípicos de 6–10 s que hacían inestable el umbral; en producción se mide en torno a 1 s.*
+2. Lo mismo con la ficha abierta: la línea muestra la decisión y su fecha y el historial gana el evento, sin recargar la página (espera amplia de hasta 30 s para el refresco, con el tiempo registrado; el aviso de Realtime conserva su umbral de 5 s).
 3. El aviso está en una región `aria-live`, su texto está en castellano y se puede cerrar con teclado.
 4. Un usuario del taller 2 con el tablero abierto no recibe avisos ni cambios del taller 1 (test con dos sesiones).
 5. Al salir de la pantalla se elimina el canal: no se acumulan canales al navegar entre tablero y ficha.

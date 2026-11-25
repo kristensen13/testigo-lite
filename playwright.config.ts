@@ -24,6 +24,8 @@ const soloRls = /--project[= ]rls(\s|$)/.test(args) && !/--project[= ]chromium/.
 
 export default defineConfig({
   fullyParallel: true,
+  // 12 workers sobre un único `next dev` y Supabase producen atascos de acciones de servidor de 45-60 s.
+  workers: 4,
   // Margen para el primer render con el servidor dev en frío (compilación + streaming).
   timeout: 60_000,
   expect: { timeout: 20_000 },

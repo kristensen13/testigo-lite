@@ -65,7 +65,7 @@ test.describe.serial("portal del cliente (criterios 1 a 5)", () => {
     await page.getByLabel("Kilómetros").fill(KM);
     await page.getByLabel("Avería que cuenta el cliente").fill("Ruido al frenar");
     await page.getByRole("button", { name: "Crear orden" }).click();
-    await expect(page).toHaveURL(UUID_URL);
+    await expect(page).toHaveURL(UUID_URL, { timeout: 45_000 }); // la acción de servidor puede tardar con next dev en frío
     orderUrl = page.url();
     orderId = UUID_URL.exec(orderUrl)![1];
 
@@ -288,4 +288,32 @@ test.describe.serial("portal del cliente (criterios 1 a 5)", () => {
     expect(revocado.texto).not.toContain(matricula);
     await ctx.close();
   });
+});
+
+// El proxy no consulta la sesión en /p/*: aunque el navegador traiga la sesión del taller
+// (este proyecto la usa por defecto), el portal responde igual que a un cliente anónimo.
+test("el proxy no toca /p/*: mismas cabeceras, sin cookies y misma página con sesión del taller", async ({
+  page,
+  browser,
+  baseURL,
+}) => {
+  const ruta = `/p/${"cd".repeat(32)}`;
+  const conSesion = await page.request.get(ruta);
+  const ctx = await contextoCliente(browser, baseURL);
+  const sinSesion = await ctx.request.get(ruta);
+
+  for (const res of [conSesion, sinSesion]) {
+    const h = res.headers();
+    expect(res.status()).toBe(200);
+    expect(h["referrer-policy"]).toBe("no-referrer");
+    expect(h["x-robots-tag"]).toBe("noindex, nofollow");
+    expect(h["cache-control"]).toContain("no-store");
+    expect(h["set-cookie"]).toBeUndefined();
+  }
+  expect(await conSesion.text()).toContain("Este enlace ya no está disponible");
+  // Para el taller, en cambio, el resto de rutas sigue exigiendo sesión.
+  const privada = await ctx.request.get("/", { maxRedirects: 0 });
+  expect(privada.status()).toBe(307);
+  expect(privada.headers()["location"]).toContain("/login");
+  await ctx.close();
 });

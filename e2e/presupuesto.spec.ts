@@ -23,7 +23,7 @@ test.describe.serial("presupuesto (criterios 1 a 3)", () => {
     await page.getByLabel("Kilómetros").fill("12000");
     await page.getByLabel("Avería que cuenta el cliente").fill("Revisión");
     await page.getByRole("button", { name: "Crear orden" }).click();
-    await expect(page).toHaveURL(UUID_URL);
+    await expect(page).toHaveURL(UUID_URL, { timeout: 45_000 }); // la acción de servidor puede tardar con next dev en frío
     await expect(page.getByText(/Todavía no hay trabajos ni recambios/)).toBeVisible();
     await expect(page.getByTestId("total-presupuesto")).toContainText("0,00");
   });
@@ -31,7 +31,7 @@ test.describe.serial("presupuesto (criterios 1 a 3)", () => {
   test("criterio 1: totales de mano de obra y recambio", async ({ page }) => {
     await page.goto(`/?q=${matricula}`);
     await page.getByRole("link", { name: new RegExp(matricula) }).first().click();
-    await expect(page).toHaveURL(UUID_URL);
+    await expect(page).toHaveURL(UUID_URL, { timeout: 45_000 }); // la acción de servidor puede tardar con next dev en frío
 
     await anadir(page, "Mano de obra", "Cambio de pastillas", "2", "40,00");
     await expect(page.getByTestId("linea")).toHaveCount(1);
@@ -114,7 +114,7 @@ test.describe.serial("presupuesto (criterios 1 a 3)", () => {
 test("criterio 4: las líneas decididas se muestran bloqueadas, sin botones (solo lectura)", async ({ page }) => {
   await page.goto("/?q=8642");
   await page.getByRole("link", { name: /8642/ }).first().click();
-  await expect(page).toHaveURL(UUID_URL);
+  await expect(page).toHaveURL(UUID_URL, { timeout: 45_000 }); // la acción de servidor puede tardar con next dev en frío
 
   const lineas = page.getByTestId("linea");
   await expect(lineas).toHaveCount(3);

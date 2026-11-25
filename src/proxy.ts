@@ -7,13 +7,22 @@ export function isPublicPath(pathname: string): boolean {
   return (
     pathname === "/login" ||
     pathname.startsWith("/login/") ||
-    pathname === "/p" ||
-    pathname.startsWith("/p/")
+    isPortalPath(pathname)
   );
+}
+
+/** Portal del cliente: nunca usa la sesión del taller. */
+export function isPortalPath(pathname: string): boolean {
+  return pathname === "/p" || pathname.startsWith("/p/");
 }
 
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
+
+  // El portal no usa sesión: no se consulta a Supabase Auth (menos latencia) ni se emiten
+  // cookies de sesión en él. Sus cabeceras las pone next.config.ts, no el proxy.
+  if (isPortalPath(pathname)) return NextResponse.next({ request });
+
   let response = NextResponse.next({ request });
   const env = tryGetPublicEnv();
 
@@ -61,9 +70,7 @@ export async function proxy(request: NextRequest) {
 
   // Las pantallas del taller y el login nunca se cachean (ni en el
   // navegador al volver atrás tras cerrar sesión).
-  if (!pathname.startsWith("/p/") && pathname !== "/p") {
-    response.headers.set("Cache-Control", "no-store, max-age=0");
-  }
+  response.headers.set("Cache-Control", "no-store, max-age=0");
 
   return response;
 }

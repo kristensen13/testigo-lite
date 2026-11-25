@@ -259,18 +259,15 @@ test.describe("Portal: caducidad y revocación", () => {
       usuario.rpc("create_public_link", { p_order_id: orderId }),
     ]);
 
-    // Con el bloqueo de la orden se serializan y ambas funcionan; si alguna
-    // fallara, solo se admite un error controlado (nunca dejar dos activos).
+    // 0002 bloquea la orden con `for update`: las dos llamadas se serializan y
+    // ambas devuelven token; la segunda revoca el enlace de la primera.
     const tokens: string[] = [];
     for (const r of resultados) {
-      if (r.error) {
-        expect(r.error.message).toMatch(/public_links_one_active_idx|duplicate key|deadlock/);
-      } else {
-        expect(r.data).toMatch(TOKEN_HEX);
-        tokens.push(r.data as string);
-      }
+      expect(r.error, "ninguna creación debe fallar").toBeNull();
+      expect(r.data).toMatch(TOKEN_HEX);
+      tokens.push(r.data as string);
     }
-    expect(tokens.length).toBeGreaterThanOrEqual(1);
+    expect(tokens).toHaveLength(2);
 
     const { data, error } = await usuario
       .from("public_links")

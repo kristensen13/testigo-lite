@@ -36,7 +36,7 @@ test.describe.serial("enlace para el cliente (criterios 1 a 5)", () => {
     await page.getByLabel("Kilómetros").fill("50000");
     await page.getByLabel("Avería que cuenta el cliente").fill("Revisión de enlace");
     await page.getByRole("button", { name: "Crear orden" }).click();
-    await expect(page).toHaveURL(UUID_URL);
+    await expect(page).toHaveURL(UUID_URL, { timeout: 45_000 }); // la acción de servidor puede tardar con next dev en frío
 
     const seccion = page.getByRole("region", { name: "Enlace para el cliente" });
     await expect(page.getByTestId("estado-enlace")).toHaveText(/Sin enlace todavía/);
@@ -60,7 +60,7 @@ test.describe.serial("enlace para el cliente (criterios 1 a 5)", () => {
   test("criterio 2: al recargar solo se ve el estado, nunca el token", async ({ page, context }) => {
     await page.goto(`/?q=${matricula}`);
     await page.getByRole("link", { name: new RegExp(matricula) }).first().click();
-    await expect(page).toHaveURL(UUID_URL);
+    await expect(page).toHaveURL(UUID_URL, { timeout: 45_000 }); // la acción de servidor puede tardar con next dev en frío
     await expect(page.getByTestId("estado-enlace")).toHaveText(/Enlace activo hasta .+/);
     await expect(page.getByTestId("url-cliente")).toHaveCount(0);
     const html = await (await context.request.get(page.url())).text();

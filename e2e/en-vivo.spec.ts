@@ -1,109 +1,59 @@
 import { execFileSync } from "node:child_process";
 import { createClient } from "@supabase/supabase-js";
-import { expect, test, type Browser, type BrowserContext, type Locator, type Page } from "@playwright/test";
+import { expect, test, type BrowserContext, type Locator, type Page } from "@playwright/test";
+import {
+  TOKEN_URL,
+  UUID_URL,
+  anadirLinea,
+  canalesVivos,
+  contextoCliente,
+  grabarRealtime,
+  joins,
+  joinsAceptados,
+  leaves,
+  lineaPortal,
+  type Frame,
+} from "./helpers";
 
-const UUID_URL = /\/ordenes\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
-const TOKEN_URL = /\/p\/([0-9a-f]{64})$/;
-
-const A = "Cambio de pastillas";
-const B = "Filtro de aire";
-const C = "Líquido de frenos";
+// Descripciones exclusivas de este spec: los avisos en vivo llegan a todo el taller y otros specs
+// en paralelo (decision.spec) deciden trabajos con otros textos; si coincidieran, el aviso saldría duplicado.
+const A = "Revisión del alternador";
+const B = "Correa de servicio";
+const C = "Escobillas limpiaparabrisas";
 
 // ---------------------------------------------------------------------------
 // Utilidades de prueba (nada de esto vive en el código de producción)
 // ---------------------------------------------------------------------------
 
-type Frame = { dir: "out" | "in"; topic: string; event: string; payload: unknown; raw: string };
-
 /**
- * Registra los frames del WebSocket de Realtime de una página (page.on('websocket')).
- * Es el método de observación del canal: cada canal es un topic `realtime:<nombre>`;
- * `phx_join` = alta y `phx_leave` = baja (removeChannel). Soporta el serializador
- * de Realtime v2 (frames en forma de array) y el v1 (objeto).
+ * Registra el texto de todos los avisos en vivo que han llegado a aparecer en el DOM (aunque se
+ * cierren luego). Los avisos llegan a TODO el taller: con specs en paralelo (decision, portal,
+ * flujo-completo, tests/rls...) el tablero recibe también los de otras órdenes; por eso se guardan
+ * los textos y se distingue lo propio de lo ajeno por el contenido.
  */
-function grabarRealtime(page: Page): Frame[] {
-  const frames: Frame[] = [];
-  page.on("websocket", (ws) => {
-    if (!ws.url().includes("/realtime/")) return;
-    const anota = (dir: "out" | "in") => (f: { payload: string | Buffer }) => {
-      if (typeof f.payload !== "string") return;
-      try {
-        const j: unknown = JSON.parse(f.payload);
-        if (Array.isArray(j)) frames.push({ dir, topic: String(j[2]), event: String(j[3]), payload: j[4], raw: f.payload });
-        else if (typeof j === "object" && j !== null) {
-          const o = j as { topic?: unknown; event?: unknown; payload?: unknown };
-          frames.push({ dir, topic: String(o.topic), event: String(o.event), payload: o.payload, raw: f.payload });
-        }
-      } catch {
-        // Frame que no es JSON: se ignora.
-      }
-    };
-    ws.on("framesent", anota("out"));
-    ws.on("framereceived", anota("in"));
-  });
-  return frames;
-}
-
-const esCanalPropio = (f: Frame) => f.topic.startsWith("realtime:taller-en-vivo-");
-const joins = (frames: Frame[]) => frames.filter((f) => f.dir === "out" && f.event === "phx_join" && esCanalPropio(f));
-const leaves = (frames: Frame[]) => frames.filter((f) => f.dir === "out" && f.event === "phx_leave" && esCanalPropio(f));
-const joinsAceptados = (frames: Frame[]) =>
-  frames.filter(
-    (f) =>
-      f.dir === "in" &&
-      f.event === "phx_reply" &&
-      esCanalPropio(f) &&
-      (f.payload as { status?: string } | null)?.status === "ok",
-  );
-/** Canales propios con más altas que bajas: los que siguen vivos. */
-function canalesVivos(frames: Frame[]): string[] {
-  const saldo = new Map<string, number>();
-  for (const f of joins(frames)) saldo.set(f.topic, (saldo.get(f.topic) ?? 0) + 1);
-  for (const f of leaves(frames)) saldo.set(f.topic, (saldo.get(f.topic) ?? 0) - 1);
-  return [...saldo].filter(([, n]) => n > 0).map(([t]) => t);
-}
-
-/** Cuenta cuántos avisos en vivo han llegado a aparecer en el DOM (aunque se cierren luego). */
-async function contarAvisosVistos(page: Page) {
+async function registrarAvisos(page: Page) {
   await page.addInitScript(() => {
-    const w = window as unknown as { __avisosVistos: number };
-    w.__avisosVistos = 0;
+    const w = window as unknown as { __avisosTextos: string[] };
+    w.__avisosTextos = [];
+    const sel = '[data-testid="aviso-en-vivo"]';
     new MutationObserver((muts) => {
       for (const m of muts)
         for (const n of m.addedNodes)
-          if (
-            n instanceof Element &&
-            (n.matches('[data-testid="aviso-en-vivo"]') || n.querySelector('[data-testid="aviso-en-vivo"]'))
-          )
-            w.__avisosVistos++;
+          if (n instanceof Element)
+            for (const a of n.matches(sel) ? [n] : Array.from(n.querySelectorAll(sel)))
+              w.__avisosTextos.push((a.textContent ?? "").trim());
     }).observe(document, { childList: true, subtree: true });
   });
 }
-const avisosVistos = (page: Page) =>
-  page.evaluate(() => (window as unknown as { __avisosVistos?: number }).__avisosVistos ?? 0);
+const textosAvisos = (page: Page) =>
+  page.evaluate(() => (window as unknown as { __avisosTextos?: string[] }).__avisosTextos ?? []);
 
 const avisos = (page: Page) => page.getByTestId("avisos-en-vivo");
+// Las comprobaciones positivas localizan el aviso por el texto con la descripción propia (exclusiva
+// de este spec), así que los avisos ajenos no las confunden. Límite documentado: el apilado muestra
+// como máximo 3 avisos, y solo si llegaran 3 ajenos DESPUÉS del propio dentro de la ventana de
+// comprobación (milisegundos) lo desplazarían; con los pocos specs que deciden líneas es inverosímil.
 const aviso = (page: Page, texto: string) => avisos(page).getByTestId("aviso-en-vivo").filter({ hasText: texto });
-
-async function contextoCliente(browser: Browser, baseURL: string | undefined): Promise<BrowserContext> {
-  return browser.newContext({
-    baseURL,
-    viewport: { width: 360, height: 740 },
-    storageState: { cookies: [], origins: [] },
-  });
-}
-
-async function anadirLinea(page: Page, tipo: string, descripcion: string, cantidad: string, precio: string) {
-  const form = page.getByRole("form", { name: "Añadir línea" });
-  await form.getByLabel("Tipo").selectOption({ label: tipo });
-  await form.getByLabel("Descripción").fill(descripcion);
-  await form.getByLabel("Cantidad").fill(cantidad);
-  await form.getByLabel(/^Precio unitario/).fill(precio);
-  await form.getByRole("button", { name: "Añadir línea" }).click();
-}
-
-const lineaPortal = (page: Page, descripcion: string) =>
-  page.getByTestId("portal-linea").filter({ hasText: descripcion });
 
 /** Resuelve con el instante (ms) en que se cumple la promesa. */
 const marca = (p: Promise<unknown>) => p.then(() => Date.now());
@@ -161,7 +111,7 @@ test.describe.serial("avisos en vivo (T14)", () => {
     await page2.getByLabel("Contraseña").fill(password!);
     await page2.getByRole("button", { name: "Entrar" }).click();
     await expect(page2.getByTestId("workshop-name")).toBeVisible({ timeout: 30_000 });
-    await contarAvisosVistos(page2);
+    await registrarAvisos(page2);
     framesTaller2 = grabarRealtime(page2);
     await page2.goto("/");
     await expect(page2.getByRole("heading", { name: "Tablero" })).toBeVisible();
@@ -173,6 +123,8 @@ test.describe.serial("avisos en vivo (T14)", () => {
   });
 
   test("preparación: orden con tres trabajos, en Esperando aprobación y con enlace", async ({ page }) => {
+    // Con el servidor dev en frío las acciones tardan; no hay nada que medir aquí.
+    test.setTimeout(120_000);
     await page.goto("/ordenes/nueva");
     await page.getByLabel("Nombre").fill("Elena En Vivo");
     await page.getByLabel("Teléfono").fill("600555777");
@@ -181,15 +133,15 @@ test.describe.serial("avisos en vivo (T14)", () => {
     await page.getByLabel("Kilómetros").fill("64000");
     await page.getByLabel("Avería que cuenta el cliente").fill("Aviso en vivo");
     await page.getByRole("button", { name: "Crear orden" }).click();
-    await expect(page).toHaveURL(UUID_URL);
+    await expect(page).toHaveURL(UUID_URL, { timeout: 45_000 }); // la acción de servidor puede tardar con next dev en frío
     orderUrl = page.url();
 
     await anadirLinea(page, "Mano de obra", A, "2", "40,00");
-    await expect(page.getByTestId("linea")).toHaveCount(1);
+    await expect(page.getByTestId("linea")).toHaveCount(1, { timeout: 45_000 });
     await anadirLinea(page, "Recambio", B, "1", "25,50");
-    await expect(page.getByTestId("linea")).toHaveCount(2);
+    await expect(page.getByTestId("linea")).toHaveCount(2, { timeout: 45_000 });
     await anadirLinea(page, "Recambio", C, "1", "10,00");
-    await expect(page.getByTestId("linea")).toHaveCount(3);
+    await expect(page.getByTestId("linea")).toHaveCount(3, { timeout: 45_000 });
 
     await page.getByRole("button", { name: "Pasar a Diagnóstico" }).click();
     await expect(page.getByRole("button", { name: "Pasar a Esperando aprobación" })).toBeVisible();
@@ -207,6 +159,7 @@ test.describe.serial("avisos en vivo (T14)", () => {
   test("criterios 1 y 3: el tablero abierto se actualiza solo y avisa; el aviso es aria-live y se cierra con Enter", async ({
     page,
   }) => {
+    test.setTimeout(120_000); // esperas amplias (30 s) del refresco funcional
     await page.goto(`/?q=${matricula}`);
     const tarjeta = page.getByRole("link", { name: new RegExp(matricula) });
     await expect(tarjeta).toHaveCount(1);
@@ -221,14 +174,16 @@ test.describe.serial("avisos en vivo (T14)", () => {
 
     const { guardada } = await decidir(portal, token, A, "aprobar");
     const avisoA = aviso(page, `El cliente ha aprobado «${A}»`);
-    const [tChip, tAviso, tGuardada] = await Promise.all([
-      marca(expect(tarjeta).toContainText("Cliente: 1/3 decididos", { timeout: 15_000 })),
-      marca(expect(avisoA).toBeVisible({ timeout: 15_000 })),
-      marca(guardada),
-    ]);
-    expect(Math.max(tChip, tAviso) - tGuardada, `chip +${tChip - tGuardada} ms, aviso +${tAviso - tGuardada} ms`).toBeLessThan(5000);
-    expect(await page.evaluate(() => (window as unknown as { __sinRecarga?: boolean }).__sinRecarga)).toBe(true);
-
+    // `guardada` no se espera aquí: el aviso se cierra solo a los 8 s y, en dev, la acción del
+    // portal puede confirmar mucho después de que Realtime ya lo haya entregado.
+    const tGuardadaA = marca(guardada);
+    tGuardadaA.catch(() => undefined); // si el test falla antes, que no quede un rechazo sin atender
+    // Refresco del chip: se comprueba su corrección funcional (espera amplia de 30 s), sin umbral de 5 s.
+    const tChipA = marca(expect(tarjeta).toContainText("Cliente: 1/3 decididos", { timeout: 30_000 }));
+    tChipA.catch(() => undefined);
+    // Las comprobaciones del aviso van en cuanto aparece (se cierra solo a los 8 s); el chip
+    // se espera después, así un refresco lento no hace caducar el aviso antes de mirarlo.
+    const tAviso = await marca(expect(avisoA).toBeVisible({ timeout: 15_000 }));
     // Criterio 3: región aria-live educada, texto en castellano, sin datos sensibles y cierre con teclado.
     const region = avisos(page);
     await expect(region).toHaveAttribute("aria-live", "polite");
@@ -241,11 +196,26 @@ test.describe.serial("avisos en vivo (T14)", () => {
     expect((await cerrar.boundingBox())!.width).toBeGreaterThanOrEqual(44);
     await cerrarConTeclado(cerrar, page, "Enter");
     await expect(avisoA).toHaveCount(0);
+
+    // Dos comprobaciones distintas (decisión del usuario):
+    //  (i) LATENCIA DE REALTIME, con umbral estricto de 5 s: el aviso debe aparecer en menos de 5 s
+    //      desde que el portal confirma la decisión (ver `decidir`).
+    //  (ii) CORRECCIÓN FUNCIONAL DEL REFRESCO: el chip se actualiza sin recargar (espera de hasta 30 s).
+    //      Su tiempo se registra pero NO tiene umbral: el refresco del tablero (proxy -> layout ->
+    //      consultas) depende de la latencia de red hacia Supabase (conexiones TLS nuevas si el pool
+    //      lleva inactivo >4 s) y de la compilación de `next dev`; en frío ha llegado a tardar >10 s.
+    const tChip = await tChipA;
+    const tGuardada = await tGuardadaA;
+    const medida = `TIEMPOS criterio 1: aviso ${tAviso - tGuardada} ms, chip ${tChip - tGuardada} ms (desde que el portal confirma)`;
+    console.log(medida);
+    expect(tAviso - tGuardada, medida).toBeLessThan(5000);
+    expect(await page.evaluate(() => (window as unknown as { __sinRecarga?: boolean }).__sinRecarga)).toBe(true);
   });
 
   test("criterios 2 y 3: la ficha abierta muestra la decisión, su fecha y el historial; cierre con Espacio", async ({
     page,
   }) => {
+    test.setTimeout(120_000); // esperas amplias (30 s) del refresco funcional
     await page.goto(orderUrl);
     const lineaB = page.getByTestId("linea").filter({ hasText: B });
     await expect(lineaB.getByTestId("decision")).toHaveText("Pendiente");
@@ -260,18 +230,27 @@ test.describe.serial("avisos en vivo (T14)", () => {
 
     const { guardada } = await decidir(portal, token, B, "rechazar");
     const avisoB = aviso(page, `El cliente ha rechazado «${B}»`);
-    const [t1, t2, t3, t4, tGuardada] = await Promise.all([
-      marca(expect(lineaB.getByTestId("decision")).toHaveText("Rechazada", { timeout: 15_000 })),
-      marca(expect(lineaB).toContainText(/Decidida por el cliente el .*\d{2}:\d{2}/, { timeout: 15_000 })),
-      marca(expect(evB).toHaveCount(1, { timeout: 15_000 })),
-      marca(expect(avisoB).toBeVisible({ timeout: 15_000 })),
-      marca(guardada),
+    const tGuardadaB = marca(guardada);
+    tGuardadaB.catch(() => undefined);
+    const pFicha = Promise.all([
+      // Corrección funcional del refresco de la ficha (sin recarga): espera de 30 s, tiempo solo registrado.
+      marca(expect(lineaB.getByTestId("decision")).toHaveText("Rechazada", { timeout: 30_000 })),
+      marca(expect(lineaB).toContainText(/Decidida por el cliente el .*\d{2}:\d{2}/, { timeout: 30_000 })),
+      marca(expect(evB).toHaveCount(1, { timeout: 30_000 })),
     ]);
-    expect(Math.max(t1, t2, t3, t4) - tGuardada).toBeLessThan(5000);
-    expect(await page.evaluate(() => (window as unknown as { __sinRecarga?: boolean }).__sinRecarga)).toBe(true);
-    await guardada;
+    pFicha.catch(() => undefined);
+    // El aviso dura 8 s: se cierra con el teclado en cuanto aparece, antes de esperar al refresco de la ficha.
+    const t4 = await marca(expect(avisoB).toBeVisible({ timeout: 15_000 }));
     await cerrarConTeclado(avisoB.getByRole("button", { name: "Cerrar aviso" }), page, "Space");
     await expect(avisoB).toHaveCount(0);
+    const [t1, t2, t3] = await pFicha;
+
+    const tGuardada = await tGuardadaB;
+    const medida = `TIEMPOS criterio 2: decision ${t1 - tGuardada} ms, fecha ${t2 - tGuardada} ms, historial ${t3 - tGuardada} ms, aviso ${t4 - tGuardada} ms`;
+    console.log(medida);
+    // Umbral estricto de 5 s solo para la latencia de Realtime (el aviso); la ficha solo se registra.
+    expect(t4 - tGuardada, medida).toBeLessThan(5000);
+    expect(await page.evaluate(() => (window as unknown as { __sinRecarga?: boolean }).__sinRecarga)).toBe(true);
   });
 
   test("criterio 4: un usuario del taller 2 con el tablero abierto no recibe avisos ni cambios del taller 1", async ({
@@ -313,7 +292,9 @@ test.describe.serial("avisos en vivo (T14)", () => {
 
     // Margen razonable antes de afirmar la ausencia.
     await page2.waitForTimeout(7000);
-    expect(await avisosVistos(page2)).toBe(0);
+    // El taller 2 no tiene actividad de ningún otro spec (solo este abre su sesión y nada decide líneas
+    // allí), así que aquí no puede llegar ningún aviso, ni propio ni ajeno.
+    expect(await textosAvisos(page2)).toEqual([]);
     await expect(avisos(page2).getByTestId("aviso-en-vivo")).toHaveCount(0);
     await expect(page2.getByText(matricula)).toHaveCount(0);
     expect(framesTaller2.some((f) => f.dir === "in" && f.raw.includes(C))).toBe(false);
@@ -323,7 +304,7 @@ test.describe.serial("avisos en vivo (T14)", () => {
   });
 
   test("enlace_creado y enlace_revocado no muestran ningún aviso", async ({ page, context }) => {
-    await contarAvisosVistos(page);
+    await registrarAvisos(page);
     const frames = grabarRealtime(page);
     await page.goto(`/?q=${matricula}`);
     await expect(page.getByRole("link", { name: new RegExp(matricula) })).toHaveCount(1);
@@ -346,8 +327,16 @@ test.describe.serial("avisos en vivo (T14)", () => {
       .poll(() => frames.some((f) => f.dir === "in" && /enlace_creado/.test(f.raw)) && frames.some((f) => f.dir === "in" && /enlace_revocado/.test(f.raw)), { timeout: 10_000 })
       .toBe(true);
     await page.waitForTimeout(6000);
-    expect(await avisosVistos(page)).toBe(0);
-    await expect(avisos(page).getByTestId("aviso-en-vivo")).toHaveCount(0);
+    // Este tablero es del taller 1 y recibe también los avisos de decisiones de OTRAS órdenes que otros
+    // specs (o tests/rls) deciden en paralelo: se muestran en el log como evidencia y no cuentan. Lo
+    // que no puede aparecer es ningún aviso de ESTA orden: sus trabajos A, B y C tienen descripciones
+    // exclusivas de este spec y ya estaban decididos, así que cualquier aviso con ellas (o cualquier
+    // aviso con el texto de un enlace) vendría de interpretar enlace_* como decisión.
+    const vistos = await textosAvisos(page);
+    console.log(`Avisos ajenos vistos en el tablero durante el test de enlaces: ${JSON.stringify(vistos)}`);
+    const propios = vistos.filter((t) => [A, B, C].some((d) => t.includes(d)) || /enlace/i.test(t));
+    expect(propios, "ningún aviso de esta orden ni de enlaces").toEqual([]);
+    await expect(avisos(page).getByTestId("aviso-en-vivo").filter({ hasText: new RegExp(`${A}|${B}|${C}|enlace`, "i") })).toHaveCount(0);
   });
 
   test("criterio 5: no se acumulan canales al navegar entre tablero y ficha", async ({ page }) => {
@@ -360,7 +349,7 @@ test.describe.serial("avisos en vivo (T14)", () => {
 
     for (let i = 0; i < 4; i++) {
       await tarjeta.click();
-      await expect(page).toHaveURL(UUID_URL);
+      await expect(page).toHaveURL(UUID_URL, { timeout: 45_000 }); // la acción de servidor puede tardar con next dev en frío
       await expect(page.getByTestId("estado-actual")).toBeVisible();
       await page.getByRole("link", { name: "Volver al tablero" }).click();
       await expect(tarjeta).toHaveCount(1);
@@ -372,7 +361,7 @@ test.describe.serial("avisos en vivo (T14)", () => {
     expect(joins(frames).length - leaves(frames).length).toBe(1);
   });
 
-  test("criterio 6: NEXT_PUBLIC_* solo URL y clave anónima, y sin service_role en el código", () => {
+  test("criterio 6: NEXT_PUBLIC_* solo URL y clave anónima, y sin la clave de servicio de Supabase en el código", () => {
     const git = (args: string[]) => {
       try {
         return execFileSync("git", args, { encoding: "utf8" });

@@ -35,7 +35,7 @@ async function crear(page: Page, d: Datos) {
   await page.goto("/ordenes/nueva");
   await rellenar(page, d);
   await page.getByRole("button", { name: "Crear orden" }).click();
-  await expect(page).toHaveURL(UUID);
+  await expect(page).toHaveURL(UUID, { timeout: 45_000 }); // la acción de servidor puede tardar con next dev en frío
 }
 
 async function buscar(page: Page, texto: string) {
@@ -139,6 +139,6 @@ test.describe("nueva orden", () => {
     }
     await expect(page.getByRole("button", { name: "Crear orden" })).toBeFocused();
     await page.keyboard.press("Enter");
-    await expect(page).toHaveURL(UUID);
+    await expect(page).toHaveURL(UUID, { timeout: 45_000 }); // la acción de servidor puede tardar con next dev en frío
   });
 });

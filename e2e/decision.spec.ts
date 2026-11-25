@@ -68,7 +68,7 @@ test.describe.serial("portal: aprobar y rechazar con confirmación (T13)", () =>
     await page.getByLabel("Kilómetros").fill("88000");
     await page.getByLabel("Avería que cuenta el cliente").fill("Frenos blandos");
     await page.getByRole("button", { name: "Crear orden" }).click();
-    await expect(page).toHaveURL(UUID_URL);
+    await expect(page).toHaveURL(UUID_URL, { timeout: 45_000 }); // la acción de servidor puede tardar con next dev en frío
     orderUrl = page.url();
 
     await anadirLinea(page, "Mano de obra", A, "2", "40,00");
@@ -175,7 +175,7 @@ test.describe.serial("portal: aprobar y rechazar con confirmación (T13)", () =>
     await expect(tarjeta).toContainText("Cliente: 2/3 decididos");
 
     await tarjeta.click();
-    await expect(page).toHaveURL(UUID_URL);
+    await expect(page).toHaveURL(UUID_URL, { timeout: 45_000 }); // la acción de servidor puede tardar con next dev en frío
     const lineas = page.getByTestId("linea");
     const fichaA = lineas.filter({ hasText: A });
     const fichaB = lineas.filter({ hasText: B });

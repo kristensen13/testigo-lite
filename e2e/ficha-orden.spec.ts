@@ -26,7 +26,7 @@ test.describe.serial("ficha de la orden (criterios 1 a 4)", () => {
     await page.getByLabel("Kilómetros").fill("85000");
     await page.getByLabel("Avería que cuenta el cliente").fill("Ruido al frenar");
     await page.getByRole("button", { name: "Crear orden" }).click();
-    await expect(page).toHaveURL(UUID_URL);
+    await expect(page).toHaveURL(UUID_URL, { timeout: 45_000 }); // la acción de servidor puede tardar con next dev en frío
     fichaUrl = new URL(page.url()).pathname;
 
     await expect(page.getByRole("heading", { level: 1 })).toContainText(matricula);
