@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
+  ID_LIMIT,
   OPEN_ORDERS_LIMIT,
   PREVIOUS_DELIVERED_LIMIT,
   RECENT_DELIVERED_LIMIT,
@@ -182,7 +183,7 @@ describe("fetchBoard: reglas del tablero", () => {
 });
 
 describe("límites con aviso (criterio 5)", () => {
-  it("límite + 1 abiertas: se avisa y se muestran exactamente 1000", async () => {
+  it("límite + 1 abiertas: se avisa y se muestran exactamente 500", async () => {
     const { client, calls } = fakeClient({
       orders: Array.from({ length: OPEN_ORDERS_LIMIT + 1 }, (_, i) => ORDER(i)),
     });
@@ -239,7 +240,11 @@ describe("fetchPreviousDelivered", () => {
     expect(executed(calls)).toHaveLength(3);
 
     const vacio = fakeClient({});
-    expect(await fetchPreviousDelivered(vacio.client, "nadie", NOW)).toEqual({ orders: [], truncated: false });
+    expect(await fetchPreviousDelivered(vacio.client, "nadie", NOW)).toEqual({
+      orders: [],
+      truncated: false,
+      searchTruncated: false,
+    });
     expect(executed(vacio.calls).some((c) => c.table === "orders")).toBe(false);
   });
 
@@ -257,5 +262,81 @@ describe("fetchPreviousDelivered", () => {
     const r2 = await fetchPreviousDelivered(justo.client, "", NOW);
     expect(r2.truncated).toBe(false);
     expect(r2.orders).toHaveLength(PREVIOUS_DELIVERED_LIMIT);
+  });
+});
+
+describe("búsqueda con demasiadas coincidencias (T16b)", () => {
+  const ids = (n: number, p: string) => Array.from({ length: n }, (_, i) => ({ id: `${p}${i}` }));
+  const orCond = (calls: Call[]) =>
+    calls.find((c) => c.table === "orders" && c.ops.some((o) => o.startsWith("or:")))?.ops.find((o) =>
+      o.startsWith("or:"),
+    ) ?? "";
+  const count = (s: string, p: string) => (s.match(new RegExp(`${p}[0-9]+`, "g")) ?? []).length;
+
+  it("ID_LIMIT + 1 vehículos: señal, se piden ID_LIMIT + 1 filas y el filtro usa ID_LIMIT ids", async () => {
+    const { client, calls } = fakeClient({
+      vehicles: ids(ID_LIMIT + 1, "v"),
+      customers: [],
+      orders: [ORDER(1)],
+    });
+    const board = await fetchBoard(client, "a", NOW);
+    expect(board.searchTruncated).toBe(true);
+    expect(calls.find((c) => c.table === "vehicles")?.ops).toContain(`limit:${ID_LIMIT + 1}`);
+    expect(calls.find((c) => c.table === "customers")?.ops).toContain(`limit:${ID_LIMIT + 1}`);
+    const or = orCond(calls);
+    expect(count(or, "v")).toBe(ID_LIMIT);
+    expect(or).not.toContain(`v${ID_LIMIT}`);
+    expect(executed(calls)).toHaveLength(5);
+  });
+
+  it("ID_LIMIT + 1 clientes: señal", async () => {
+    const { client, calls } = fakeClient({
+      vehicles: [],
+      customers: ids(ID_LIMIT + 1, "c"),
+      orders: [ORDER(1)],
+    });
+    const board = await fetchBoard(client, "a", NOW);
+    expect(board.searchTruncated).toBe(true);
+    expect(count(orCond(calls), "c")).toBe(ID_LIMIT);
+  });
+
+  it("frontera: exactamente ID_LIMIT coincidencias no da señal", async () => {
+    const { client } = fakeClient({
+      vehicles: ids(ID_LIMIT, "v"),
+      customers: ids(ID_LIMIT, "c"),
+      orders: [ORDER(1)],
+    });
+    expect((await fetchBoard(client, "a", NOW)).searchTruncated).toBe(false);
+  });
+
+  it("sin búsqueda nunca hay señal y no se consultan vehículos ni clientes", async () => {
+    const { client, calls } = fakeClient({
+      vehicles: ids(ID_LIMIT + 5, "v"),
+      customers: ids(ID_LIMIT + 5, "c"),
+      orders: [ORDER(1)],
+    });
+    expect((await fetchBoard(client, "", NOW)).searchTruncated).toBe(false);
+    expect(executed(calls)).toHaveLength(3);
+    expect(calls.some((c) => c.table === "vehicles" || c.table === "customers")).toBe(false);
+  });
+
+  it("vista de anteriores: señal con ID_LIMIT + 1, ninguna con ID_LIMIT o sin búsqueda; 3 y 1 consultas", async () => {
+    const mas = fakeClient({ vehicles: ids(ID_LIMIT + 1, "v"), customers: [], orders: [delivered(1, 60)] });
+    const r = await fetchPreviousDelivered(mas.client, "a", NOW);
+    expect(r.searchTruncated).toBe(true);
+    expect(r.orders).toHaveLength(1);
+    expect(executed(mas.calls)).toHaveLength(3);
+    expect(count(orCond(mas.calls), "v")).toBe(ID_LIMIT);
+
+    const cli = fakeClient({ vehicles: [], customers: ids(ID_LIMIT + 1, "c"), orders: [delivered(1, 60)] });
+    expect((await fetchPreviousDelivered(cli.client, "a", NOW)).searchTruncated).toBe(true);
+
+    const justo = fakeClient({ vehicles: ids(ID_LIMIT, "v"), customers: ids(ID_LIMIT, "c"), orders: [] });
+    expect((await fetchPreviousDelivered(justo.client, "a", NOW)).searchTruncated).toBe(false);
+
+    const sin = fakeClient({ orders: [delivered(1, 60)] });
+    const r2 = await fetchPreviousDelivered(sin.client, "", NOW);
+    expect(r2.searchTruncated).toBe(false);
+    expect(executed(sin.calls)).toHaveLength(1);
   });
 });

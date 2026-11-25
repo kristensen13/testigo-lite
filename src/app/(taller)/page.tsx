@@ -65,6 +65,7 @@ async function Board({ q }: { q: string }) {
   const notices = limitNotices({
     abiertas: board.openTruncated,
     entregadas_recientes: board.recentTruncated,
+    coincidencias: board.searchTruncated,
   });
 
   return (
@@ -137,8 +138,8 @@ async function Board({ q }: { q: string }) {
 async function PreviousDelivered({ q }: { q: string }) {
   const supabase = await createClient();
   const now = new Date();
-  const { orders, truncated } = await fetchPreviousDelivered(supabase, q, now);
-  const notices = limitNotices({ entregadas_anteriores: truncated });
+  const { orders, truncated, searchTruncated } = await fetchPreviousDelivered(supabase, q, now);
+  const notices = limitNotices({ entregadas_anteriores: truncated, coincidencias: searchTruncated });
 
   return (
     <>

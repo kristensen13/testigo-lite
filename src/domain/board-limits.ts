@@ -1,11 +1,26 @@
 import { z } from "zod";
 
+/**
+ * Máximo de filas por respuesta de PostgREST/Supabase por defecto ("Max rows",
+ * Project Settings > API). Si una consulta pide más, el servidor recorta en silencio.
+ */
+export const POSTGREST_DEFAULT_MAX_ROWS = 1000;
+
+/*
+ * RESTRICCIÓN: cada límite + 1 (lo que se pide con `fetchSize`) debe quedar por debajo
+ * de POSTGREST_DEFAULT_MAX_ROWS; si no, nunca se vería la fila extra y no habría aviso.
+ */
+
 /** Máximo de órdenes no entregadas que carga el tablero. */
-export const OPEN_ORDERS_LIMIT = 1000;
+export const OPEN_ORDERS_LIMIT = 500;
 /** Máximo de órdenes entregadas en los últimos 30 días que carga el tablero. */
 export const RECENT_DELIVERED_LIMIT = 300;
 /** Máximo de órdenes que carga la vista de entregadas anteriores. */
 export const PREVIOUS_DELIVERED_LIMIT = 200;
+/** Máximo de ids de vehículos y de clientes que se resuelven para una búsqueda. */
+export const ID_LIMIT = 200;
+/** Texto del aviso cuando la búsqueda llega a `ID_LIMIT` coincidencias. */
+export const TOO_MANY_MATCHES_TEXT = "Hay demasiadas coincidencias, afina la búsqueda";
 /** Días que una orden entregada sigue en el tablero por defecto. */
 export const DELIVERED_WINDOW_DAYS = 30;
 
@@ -62,10 +77,20 @@ export function limitNoticeText(list: BoardList): string {
   }
 }
 
-/** Avisos que toca mostrar, en orden, según qué listas se han recortado. */
-export function limitNotices(truncated: Partial<Record<BoardList, boolean>>): string[] {
+/** Causas de aviso: listas recortadas y búsqueda con demasiadas coincidencias. */
+export type NoticeCause = BoardList | "coincidencias";
+
+/**
+ * Avisos que toca mostrar, en orden (listas y, al final, coincidencias), sin duplicados
+ * aunque coincidan varias causas.
+ */
+export function limitNotices(truncated: Partial<Record<NoticeCause, boolean>>): string[] {
   const order: BoardList[] = ["abiertas", "entregadas_recientes", "entregadas_anteriores"];
-  return order.filter((list) => truncated[list] === true).map(limitNoticeText);
+  const notices = order.filter((list) => truncated[list] === true).map(limitNoticeText);
+  if (truncated.coincidencias === true) {
+    notices.push(`${TOO_MANY_MATCHES_TEXT}. Se muestran los resultados de las primeras ${ID_LIMIT} coincidencias de vehículos y de clientes.`);
+  }
+  return notices;
 }
 
 /** Vista del tablero: la de siempre o la de entregadas hace más de 30 días. */

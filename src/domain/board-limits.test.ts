@@ -3,11 +3,14 @@ import {
   applyLimit,
   deliveredCutoff,
   fetchSize,
+  ID_LIMIT,
   isRecentDelivery,
   limitNoticeText,
   limitNotices,
   OPEN_ORDERS_LIMIT,
+  TOO_MANY_MATCHES_TEXT,
   parseBoardView,
+  POSTGREST_DEFAULT_MAX_ROWS,
   PREVIOUS_DELIVERED_LIMIT,
   previousDeliveredHref,
   RECENT_DELIVERED_LIMIT,
@@ -17,10 +20,29 @@ const NOW = new Date("2026-06-30T12:00:00.000Z");
 
 describe("límites", () => {
   it("tienen los valores del producto", () => {
-    expect(OPEN_ORDERS_LIMIT).toBe(1000);
+    expect(OPEN_ORDERS_LIMIT).toBe(500);
     expect(RECENT_DELIVERED_LIMIT).toBe(300);
     expect(PREVIOUS_DELIVERED_LIMIT).toBe(200);
   });
+});
+
+describe("compatibilidad con el máximo de filas de PostgREST", () => {
+  const limits = {
+    OPEN_ORDERS_LIMIT,
+    RECENT_DELIVERED_LIMIT,
+    PREVIOUS_DELIVERED_LIMIT,
+    ID_LIMIT,
+  };
+
+  it.each(Object.entries(limits))(
+    "fetchSize(%s) es estrictamente menor que el max_rows por defecto",
+    (name, limit) => {
+      expect(
+        fetchSize(limit),
+        `${name} (${limit}) + 1 debe ser < ${POSTGREST_DEFAULT_MAX_ROWS} (Max rows de Supabase); si no, PostgREST recorta la fila extra y el aviso de límite nunca salta. Baja el límite.`,
+      ).toBeLessThan(POSTGREST_DEFAULT_MAX_ROWS);
+    },
+  );
 });
 
 describe("fecha de corte de 30 días", () => {
@@ -64,7 +86,7 @@ describe("applyLimit", () => {
 describe("textos de aviso", () => {
   it("indican qué se recorta y cómo seguir, en castellano", () => {
     expect(limitNoticeText("abiertas")).toBe(
-      "Se muestran las 1000 órdenes abiertas más recientes; hay más. Usa el buscador para encontrar una concreta.",
+      "Se muestran las 500 órdenes abiertas más recientes; hay más. Usa el buscador para encontrar una concreta.",
     );
     expect(limitNoticeText("entregadas_recientes")).toContain("300 órdenes entregadas");
     expect(limitNoticeText("entregadas_recientes")).toContain("30 días");
@@ -79,6 +101,30 @@ describe("textos de aviso", () => {
       limitNoticeText("abiertas"),
       limitNoticeText("entregadas_recientes"),
     ]);
+  });
+});
+
+describe("aviso de demasiadas coincidencias", () => {
+  it("ID_LIMIT es 200 y el texto exacto aparece en el aviso", () => {
+    expect(ID_LIMIT).toBe(200);
+    expect(TOO_MANY_MATCHES_TEXT).toBe("Hay demasiadas coincidencias, afina la búsqueda");
+    const notices = limitNotices({ coincidencias: true });
+    expect(notices).toHaveLength(1);
+    expect(notices[0]).toContain("Hay demasiadas coincidencias, afina la búsqueda");
+  });
+
+  it("no avisa si no toca y sale una sola vez junto a los demás, al final", () => {
+    expect(limitNotices({ coincidencias: false })).toEqual([]);
+    const all = limitNotices({
+      coincidencias: true,
+      entregadas_anteriores: true,
+      abiertas: true,
+      entregadas_recientes: true,
+    });
+    expect(all).toHaveLength(4);
+    expect(all.filter((n) => n.includes(TOO_MANY_MATCHES_TEXT))).toHaveLength(1);
+    expect(all[3]).toContain(TOO_MANY_MATCHES_TEXT);
+    expect(all[0]).toBe(limitNoticeText("abiertas"));
   });
 });
 

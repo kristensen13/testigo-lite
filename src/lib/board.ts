@@ -8,14 +8,12 @@ import {
   applyLimit,
   deliveredCutoff,
   fetchSize,
+  ID_LIMIT,
   OPEN_ORDERS_LIMIT,
   PREVIOUS_DELIVERED_LIMIT,
   RECENT_DELIVERED_LIMIT,
 } from "@/domain/board-limits";
 import { isOrderStatus } from "@/domain/order-status";
-
-/** Máximo de ids de vehículos y de clientes que se resuelven para una búsqueda. */
-const ID_LIMIT = 200;
 
 const ORDER_COLUMNS =
   "id, number, status, created_at, customers(name), vehicles(plate, make_model), order_lines(decision)";
@@ -55,29 +53,37 @@ function toBoardOrders(rows: OrderRow[]): BoardOrder[] {
   return orders;
 }
 
+interface SearchResolution {
+  /** Condición `or`; "" si hay búsqueda pero nada coincide. */
+  conditions: string;
+  /** Vehículos o clientes llegaron a más de `ID_LIMIT` coincidencias. */
+  truncated: boolean;
+}
+
 /**
  * Condición `or` de PostgREST con los ids de vehículos y clientes que coinciden con
- * la búsqueda: 2 consultas en paralelo. Devuelve null si no hay búsqueda, y "" si
- * hay búsqueda pero nada coincide (entonces no hace falta consultar órdenes).
+ * la búsqueda: 2 consultas en paralelo, pidiendo `ID_LIMIT + 1` filas para detectar
+ * el recorte (se usan como máximo `ID_LIMIT` ids). Devuelve null si no hay búsqueda.
  */
-async function resolveSearch(supabase: SupabaseClient, q: string): Promise<string | null> {
+async function resolveSearch(supabase: SupabaseClient, q: string): Promise<SearchResolution | null> {
   const { namePattern, platePattern } = buildSearchTerms(q);
   if (namePattern === null) return null;
+  const size = fetchSize(ID_LIMIT);
   const [vehicles, customers] = await Promise.all([
     platePattern === null
       ? Promise.resolve({ data: [] as { id: string }[], error: null })
-      : supabase.from("vehicles").select("id").ilike("plate_norm", platePattern).limit(ID_LIMIT),
-    supabase.from("customers").select("id").ilike("name", namePattern).limit(ID_LIMIT),
+      : supabase.from("vehicles").select("id").ilike("plate_norm", platePattern).limit(size),
+    supabase.from("customers").select("id").ilike("name", namePattern).limit(size),
   ]);
   if (vehicles.error) throw new Error(vehicles.error.message);
   if (customers.error) throw new Error(customers.error.message);
 
+  const v = applyLimit(vehicles.data ?? [], ID_LIMIT);
+  const c = applyLimit(customers.data ?? [], ID_LIMIT);
   const conditions: string[] = [];
-  const vehicleIds = (vehicles.data ?? []).map((v) => v.id);
-  const customerIds = (customers.data ?? []).map((c) => c.id);
-  if (vehicleIds.length > 0) conditions.push(`vehicle_id.in.(${vehicleIds.join(",")})`);
-  if (customerIds.length > 0) conditions.push(`customer_id.in.(${customerIds.join(",")})`);
-  return conditions.join(",");
+  if (v.rows.length > 0) conditions.push(`vehicle_id.in.(${v.rows.map((r) => r.id).join(",")})`);
+  if (c.rows.length > 0) conditions.push(`customer_id.in.(${c.rows.map((r) => r.id).join(",")})`);
+  return { conditions: conditions.join(","), truncated: v.truncated || c.truncated };
 }
 
 interface ListSpec {
@@ -116,6 +122,8 @@ export interface BoardData {
   orders: BoardOrder[];
   openTruncated: boolean;
   recentTruncated: boolean;
+  /** La búsqueda superó `ID_LIMIT` coincidencias de vehículos o de clientes. */
+  searchTruncated: boolean;
   /** Existe al menos una entregada anterior al corte (sin tener en cuenta la búsqueda). */
   hasPrevious: boolean;
 }
@@ -147,12 +155,13 @@ export async function fetchBoard(
       return (data ?? []).length > 0;
     });
 
-  if (search === "") {
+  if (search !== null && search.conditions === "") {
     // Búsqueda sin coincidencias: no hay órdenes que consultar.
     return {
       orders: [],
       openTruncated: false,
       recentTruncated: false,
+      searchTruncated: false,
       hasPrevious: await previousCheck,
     };
   }
@@ -165,7 +174,7 @@ export async function fetchBoard(
         orderBy: "created_at",
         limit: OPEN_ORDERS_LIMIT,
       },
-      search,
+      search?.conditions ?? null,
     ),
     runList(
       supabase,
@@ -175,7 +184,7 @@ export async function fetchBoard(
         orderBy: "updated_at",
         limit: RECENT_DELIVERED_LIMIT,
       },
-      search,
+      search?.conditions ?? null,
     ),
     previousCheck,
   ]);
@@ -184,6 +193,7 @@ export async function fetchBoard(
     orders: [...open.orders, ...recent.orders],
     openTruncated: open.truncated,
     recentTruncated: recent.truncated,
+    searchTruncated: search?.truncated ?? false,
     hasPrevious,
   };
 }
@@ -191,6 +201,8 @@ export async function fetchBoard(
 export interface PreviousDeliveredData {
   orders: BoardOrder[];
   truncated: boolean;
+  /** La búsqueda superó `ID_LIMIT` coincidencias de vehículos o de clientes. */
+  searchTruncated: boolean;
 }
 
 /**
@@ -204,8 +216,10 @@ export async function fetchPreviousDelivered(
 ): Promise<PreviousDeliveredData> {
   const cutoff = deliveredCutoff(now).toISOString();
   const search = await resolveSearch(supabase, q);
-  if (search === "") return { orders: [], truncated: false };
-  return runList(
+  if (search !== null && search.conditions === "") {
+    return { orders: [], truncated: false, searchTruncated: false };
+  }
+  const list = await runList(
     supabase,
     {
       status: { op: "eq", value: "entregado" },
@@ -213,6 +227,7 @@ export async function fetchPreviousDelivered(
       orderBy: "updated_at",
       limit: PREVIOUS_DELIVERED_LIMIT,
     },
-    search,
+    search?.conditions ?? null,
   );
+  return { ...list, searchTruncated: search?.truncated ?? false };
 }

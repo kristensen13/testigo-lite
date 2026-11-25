@@ -30,6 +30,7 @@ Producto en `PRODUCT.md`. Normas de calidad en `DIRECTRICES.md`; los números en
 - [x] T14 — Aviso en vivo en tablero y ficha (Supabase Realtime)
 - [x] T15 — Pulido final: accesibilidad, flujo completo y despliegue *(hecha hasta antes del despliegue: el despliegue en Vercel lo hace el usuario, ver README)*
 - [x] T16 — Tablero: todas las no entregadas, entregadas de los últimos 30 días y avisos de límite *(pausa del usuario: re-ejecutar `seed.sql`)*
+- [x] T16b — Aviso cuando la búsqueda llega al límite de coincidencias (`ID_LIMIT`) y `engines` de Node en `package.json`
 
 ---
 
@@ -380,7 +381,7 @@ Producto en `PRODUCT.md`. Normas de calidad en `DIRECTRICES.md`; los números en
 - **Vista por defecto del tablero:** SIEMPRE todas las órdenes no entregadas (Recibido, Diagnóstico, Esperando aprobación, En reparación, Listo) y SOLO las entregadas en los últimos 30 días (`updated_at >= ahora − 30 días`).
 - **Enlace "Ver entregadas anteriores":** aparece solo si existe al menos una orden entregada hace más de 30 días. Lleva a la vista de anteriores (`/?entregadas=anteriores`, que mantiene el buscador `q`), que lista únicamente las entregadas hace más de 30 días, de más recientes a más antiguas, con enlace "Volver al tablero".
 - **Buscador:** funciona igual (matrícula normalizada o nombre de cliente) en las dos vistas, y busca dentro de lo que cada vista muestra. Para encontrar una entregada antigua se entra en "Ver entregadas anteriores" y se busca allí.
-- **Límites de seguridad con aviso visible.** Constantes con nombre en `src/domain` o `src/lib`: no entregadas `1000`, entregadas de los últimos 30 días `300`, vista de anteriores `200`. Si se alcanza (y se superaría) alguno de ellos, el tablero lo dice con un aviso visible y en castellano (texto, no solo `aria-live`) que indica qué se recorta (p. ej. "Se muestran las 1000 órdenes abiertas más recientes; hay más. Usa el buscador para encontrar una concreta"), y nunca recorta en silencio. Por debajo de los límites no hay aviso. Para saber si se superó un límite se pide `límite + 1` filas (o equivalente) y se muestran `límite`.
+- **Límites de seguridad con aviso visible.** Constantes con nombre en `src/domain` o `src/lib`: no entregadas `500` (inicialmente 1000; bajado en T16b porque el `max_rows` por defecto de PostgREST/Supabase es 1000 filas por respuesta y pedir `1000 + 1` filas impediría detectar el recorte), entregadas de los últimos 30 días `300`, vista de anteriores `200`; todos los `límite + 1` deben quedar por debajo de 1000. Si se alcanza (y se superaría) alguno de ellos, el tablero lo dice con un aviso visible y en castellano (texto, no solo `aria-live`) que indica qué se recorta (p. ej. "Se muestran las 500 órdenes abiertas más recientes; hay más. Usa el buscador para encontrar una concreta"), y nunca recorta en silencio. Por debajo de los límites no hay aviso. Para saber si se superó un límite se pide `límite + 1` filas (o equivalente) y se muestran `límite`.
 - **Sin N+1:** número fijo de consultas (sin búsqueda: no entregadas, entregadas recientes y comprobación de si hay anteriores; con búsqueda se añaden las de resolución de ids de vehículos y clientes), con solo las columnas necesarias.
 
 **Entrega**
@@ -398,3 +399,29 @@ Producto en `PRODUCT.md`. Normas de calidad en `DIRECTRICES.md`; los números en
 6. El número de consultas es fijo y no crece con el número de órdenes (test con cliente falso con 2 y con 50 órdenes, y con búsqueda).
 7. Los E2E y tests existentes siguen pasando (los de `tablero.spec.ts` que buscan órdenes del seed, `en-vivo`, `flujo-completo`, etc.); el aviso en vivo y el chip de decisiones siguen funcionando en la vista por defecto.
 8. Accesibilidad: el aviso de límite y el enlace son accesibles (texto, contraste, 360 px sin scroll horizontal, objetivos ≥ 44 px) y `axe` sigue sin violaciones en el tablero (incluida la vista de anteriores).
+
+---
+
+## T16b — Aviso cuando la búsqueda llega al límite de coincidencias, y `engines` de Node
+
+**Directrices:** 7, 22–29, 31, 33 (y 12 por el test).
+
+**Por qué:** con una búsqueda, el tablero resuelve primero los ids de vehículos (por matrícula) y de clientes (por nombre) que coinciden, y luego filtra las órdenes por esos ids. Esa resolución tiene un tope (`ID_LIMIT = 200` en `src/lib/board.ts`) que hoy recorta **en silencio**: con una búsqueda muy amplia (p. ej. una sola letra) el taller ve resultados incompletos sin saberlo. T16 exigió avisar siempre que se llegue a un límite; este es el que quedó sin cubrir.
+
+**Reglas**
+
+- **Aviso:** cuando la resolución de ids de una búsqueda (vehículos o clientes) llega a `ID_LIMIT`, es decir, se piden `ID_LIMIT + 1` filas y se reciben más de `ID_LIMIT`, el tablero muestra un aviso visible en castellano con el texto **"Hay demasiadas coincidencias, afina la búsqueda"** (puede ir acompañado de una frase de ayuda, pero ese texto exacto debe aparecer), con `role="status"` como los demás avisos de límite. Se sigue mostrando lo que se ha encontrado (con los `ID_LIMIT` ids que sí se usaron).
+- **Cuándo no avisa:** con exactamente `ID_LIMIT` coincidencias o menos NO hay aviso; con `ID_LIMIT + 1` o más, sí. Sin búsqueda, nunca.
+- **Dónde:** en la vista por defecto y en la vista de anteriores (`/?entregadas=anteriores`) cuando hay búsqueda; si ambas listas se recortan por este motivo el aviso sale una sola vez, junto a los demás avisos de límite.
+- **Número de consultas:** sigue siendo fijo (no crece con el número de órdenes ni de coincidencias); `ID_LIMIT` pasa a ser una constante con nombre del dominio (junto a los otros límites en `src/domain/board-limits.ts`), no una constante privada de `src/lib/board.ts`.
+- **`package.json`:** añadir `"engines": { "node": ">=22.12" }` (tal como lo pidió el usuario), coherente con el README ("Node.js 22.12 o superior"), de modo que Vercel use la versión correcta. El `package-lock.json` debe quedar consistente (`npm install --package-lock-only` o `npm install`); `npm run build` y `npm ci` no deben dar errores ni avisos nuevos.
+
+**Criterios de aceptación**
+
+1. Test con cliente falso (como los de `src/lib/board.test.ts`): una búsqueda cuya resolución devuelve `ID_LIMIT + 1` vehículos (o `ID_LIMIT + 1` clientes) produce la señal de recorte y el aviso con el texto exacto; con `ID_LIMIT` exactos NO hay señal ni aviso (frontera); sin búsqueda nunca hay aviso por esta causa.
+2. El mismo comportamiento en la vista de anteriores con búsqueda (test con cliente falso).
+3. Las consultas de resolución de ids piden `ID_LIMIT + 1` filas y usan como máximo `ID_LIMIT` ids en el filtro; el número de consultas sigue siendo fijo (3 sin búsqueda y 5 con búsqueda en la vista por defecto; 1 o 3 en anteriores).
+4. Test de renderizado (react-dom/server, como `src/components/board-notices.test.ts`): el aviso aparece solo cuando toca, con `role="status"` y el texto exacto, y no se duplica si coinciden varias causas.
+5. `ID_LIMIT` es una constante con nombre exportada desde `src/domain/board-limits.ts` y la usan las consultas y los tests (sin números mágicos).
+6. `package.json` contiene `"engines": { "node": ">=22.12" }`; `package-lock.json` es consistente (el campo `engines` del paquete raíz, si npm lo refleja, coincide); `npm run build`, `npm test`, `npm run lint` y `npx tsc --noEmit` siguen en verde y `npm ci` en una copia limpia no falla.
+7. Los E2E existentes del tablero (tablero, tablero-entregadas, accesibilidad, en-vivo, flujo-completo) siguen pasando (el aviso de coincidencias no aparece con las búsquedas de los tests, que son estrechas).

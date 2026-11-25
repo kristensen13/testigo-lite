@@ -96,7 +96,8 @@ Antes de lanzar los E2E, ten en cuenta:
 
 - **No dejes un `next dev` abierto en esta carpeta.** Playwright arranca su propio servidor en el puerto **3100** y Next no admite dos servidores de desarrollo en la misma carpeta. Ciérralo antes de ejecutar `npm run test:e2e`.
 - **Supabase limita los inicios de sesión** por hora y por IP. Cada ejecución completa hace unos pocos inicios de sesión reales; si salta el límite, espera unos minutos y no encadenes ejecuciones completas.
-- **Los tests dejan órdenes `E2E…` en la base de datos** (el taller no puede borrar órdenes). Con muchas ejecuciones se acumulan; el tablero muestra siempre todas las órdenes no entregadas (hasta 1000) y las entregadas de los últimos 30 días (hasta 300), y avisa si algún límite recorta la lista. Para limpiarlas, vuelve a ejecutar `supabase/seed.sql`.
+- **Los tests dejan órdenes `E2E…` en la base de datos** (el taller no puede borrar órdenes). Con muchas ejecuciones se acumulan; el tablero muestra siempre todas las órdenes no entregadas (hasta 500) y las entregadas de los últimos 30 días (hasta 300), y avisa si algún límite recorta la lista. Para limpiarlas, vuelve a ejecutar `supabase/seed.sql`.
+- **Límites del tablero y `Max rows` de Supabase.** Los límites de `src/domain/board-limits.ts` se diseñaron para el `Max rows` por defecto de Supabase (1000; Project Settings → API). Cada consulta pide límite + 1 filas para poder avisar, así que si se baja ese valor por debajo de 501 habría que bajar también esos límites.
 
 ## Arquitectura
 
